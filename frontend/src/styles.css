@@ -1,0 +1,20 @@
+:root {
+    font-family: system-ui, sans-serif;
+    color: #efe7d0;
+    background: #182c28;
+    color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { width: min(1200px, 100%); margin: auto; padding: 24px; }
+h1 { margin: 0; }
+header p, .status { color: #b5c5bc; }
+canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #24453b;
+    border: 1px solid #637463;
+    image-rendering: pixelated;
+}
