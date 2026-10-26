@@ -1,148 +1,120 @@
-## Core Rules
+# CS375 Mahjong
 
-### Win Condition:
-A winning hand consists of:
-- **5 Triplets** (or quadruplets)
-- **1 Pair**
+A browser-based Fuzhou Mahjong game developed for **CS375** by **Bill Liu,
+Zhixian Li, and Sunny Liu**.
 
----
+The project uses plain JavaScript and the **Canvas API** for game rendering,
+with a **Node.js WebSocket backend** for live multiplayer. Vite provides the
+frontend development server and production build tooling.
 
-## Actions:
+## Planned features
 
-### Draw
-- Draw **1 tile from the front of the wall**
-- Discard **1 tile**
+- Public lobby where users can create games and join anonymously.
+- Four players required to begin a game.
+- Disconnection handling.
+- Live Mahjong gameplay using the Fuzhou ruleset.
+- Optional: bots and a weekly leaderboard for valuable winning hands.
 
-### Chi
-- Claim a **consecutive triplet**
-- Only allowed from the **player to your left**
-- Draw afterwards
+Currently, the repository contains the project scaffold, PNG assets, a blank
+Canvas page, and HTTP/WebSocket server startup. Lobby and gameplay logic are
+not implemented yet.
 
-### Peng
-- Claim an **identical triplet or quadruplet** from **any player's discard**
-- Takes **precedence over Chi**
-- Draw afterwards
+## Setup
 
-### Kong (Same as Peng but for quadruplets)
-- If you already hold a **hidden triplet** (dragon or wind):
-  - You may declare **Gong** upon receiving the 4th tile
-  - Draw from BACK of wall afterwards
+Install Git and **Node.js 22.12 or newer**, including npm. Check your installation:
 
-## Dealing Phase
-1. Each player forms a 2x18 wall of tiles in front of them.
-2. Each player rolls dice, largest gets to be dealer. Winner gets dealer later.
-3. Roll dice to get __X__ number.
-4. Starting with dealer as 1, count counter clockwise __X__ players. Whoever it lands on will be the starting wall.
-5. Count clockwise (right to left) on the starting wall __X__ pairs of tiles.
-6. After __X__ pairs of tiles, in a counter clockwise motion, starting with the dealer, everyone draws 2 pairs (4 tiles) until everyone has 16 tiles.
-7. Dealer draws an extra one (17 total for them)
-8. In a counter clockwise fasion, starting with the Dealer again, everyone discards their winds and flowers and draws the same amount from the BACK of the wall. Until no one has any flowers or winds.
-9. Take one more tile from the back and reveal it as a "Gold" or Wild Card. If it is a wind or flower, discard it and reveal the next one.
-
-## Pseudo Code:
-
-```
-int Tiles: { one of 36 integers (0-35) }
-
-struct Player {
-    vector of Tiles hand;
-    vector of Tiles revealed;
-    vector of Tiles revealedSpecials;
-}
-
-struct GameState{
-    vector of Tiles revealedDiscards;
-    array of Players playerList
-    deque of Tiles wall
-    int Tile goldTile
-}
+```sh
+node --version
+npm --version
 ```
 
-```
-# Choose the starting wall
+Clone the repository and install its dependencies:
 
-                        2
-                    3       1
-                        0
-
-    Players         [0, 1, 2, 3]      -array of Player Structs
-                    [E, N, W, S]
-
-    <--- (prev) Clockwise | Counter Clockwise (next) ---> 
-
- StartWallIndex = ( DealerIndex + (DiceRoll - 1 ) ) % 4
-
+```sh
+git clone https://github.com/billyBillLiu/CS375-KSRC.git
+cd CS375-KSRC
+npm ci
 ```
 
+If you already have the repository, run `npm ci` from its root directory.
+
+Start the frontend and backend together:
+
+```sh
+npm run dev
 ```
 
-    the wall before break: (if we rolled a 3)
-                 2
-            [72 ... 107]                            
-        [71            [108
-     3  ...             ...  1
-        36]            143]
-            [35  ...  0]
-                 0
+Open **http://127.0.0.1:5173** in your browser. Keep the terminal running while
+working; press **Ctrl+C** to stop both servers.
 
+- Frontend: `http://127.0.0.1:5173`
+- Backend health check: `http://127.0.0.1:3001/api/health`
+- WebSocket endpoint: `/ws` (connection setup only; no message handlers yet)
 
-# Calculate where to break wall
+During development, Vite forwards `/api` and `/ws` requests to the backend.
+Frontend edits reload automatically, and the backend restarts when its source
+files change. No database or account setup is needed.
 
-    Wall;       [0, 1, 2, ..., 143]     -deque of 144 tiles 
-                                        -put 4 of each tile type in and shuffle
-                                        -StartPoints = [0, 108, 72, 36]
-        <--- Right | Left (Clockwise) --->
+## Configuration
 
-StartingTile = StartPoints[StartWallIndex] + 2 * DiceRoll 
-```
-```
-# Deal 4 to each 4 times
+The defaults work without an environment file. To change the backend settings,
+copy `.env.example` to `.env` in the repository root:
 
-current = DealerIndex
-repeat 4 times: 
-    Players[current].hand.add(drawFront())
-    Players[current].hand.add(drawFront())
-    current = (current + 1) % 4
-Players[current].hand.add(drawFront())
-```
-```
-# Each player gets rid of special cards until none left
-
-fun isSpecial(tile):
-    return isFlower(tile) OR isWind(tile) OR isDragon(tile)
-
-needScanning = true
-
-while needScanning:
-    needScanning = false
-    current = DealerIndex
-
-    repeat 4 times:
-        player = players[current]
-
-        for j = 0 to player.hand.size - 1
-            if isSpecial(player.hand[j]):
-                player.revealedSpecials.add(player.hand[j])
-                player.hand.removeAt(j)
-
-                newTile = drawBack()
-                player.hand.add(newTile)
-
-                needScanning = true
-
-        current = ( current + 1 ) % 4
-```
-```
-# Draw and reveal gold card
-
-goldCard = drawBack()
-while goldCard.isSpecial():
-    goldCard = drawBack()
-
-revealGold()
+```sh
+cp .env.example .env
 ```
 
-Gold:
+Keep `HOST=127.0.0.1` for local development. If you change `PORT`, restart
+`npm run dev` so the backend and Vite proxy use the new value. The `.env` file
+is ignored by Git; `.env.example` is shared with the team.
 
-Count dice_roll_num from the back
-If flower: go next
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start frontend and backend together |
+| `npm run dev:client` | Start only the Vite frontend server |
+| `npm run dev:server` | Start only the backend with file watching |
+| `npm run build` | Build the frontend into `frontend/dist/` |
+| `npm run preview` | Preview the built frontend locally |
+| `npm start` | Start the backend without file watching |
+
+To check the frontend build:
+
+```sh
+npm run build
+npm run preview
+```
+
+Open the URL printed by Vite. Preview serves only the frontend; it does not
+start the backend or configure production API/WebSocket routing.
+
+## Project structure
+
+```text
+frontend/
+  index.html          Page shell and game Canvas
+  public/assets/      PNG tile sheets, backgrounds, dice, and gold feather
+  src/
+    canvas/           Rendering and input placeholders
+    network/          Browser WebSocket client placeholder
+    ui/               Lobby UI placeholder
+    main.js           Frontend entry point
+    styles.css        Page styles
+  vite.config.js      Development proxy and build configuration
+backend/
+  src/
+    game/             Game state and rules placeholders
+    network/          Message-handler placeholder
+    rooms/            Room-manager placeholder
+    index.js          HTTP and WebSocket server startup
+  test/               Future backend tests
+shared/
+  protocol.js         WebSocket message-contract placeholder
+scripts/
+  dev.js              Starts and stops both development servers
+docs/
+  rules-notes.md      Gameplay planning notes
+```
+
+See [rules notes](docs/rules-notes.md) for gameplay planning.
