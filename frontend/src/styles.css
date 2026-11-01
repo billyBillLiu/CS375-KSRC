@@ -14,7 +14,8 @@ canvas {
     display: block;
     width: 100%;
     height: auto;
+    aspect-ratio: 16 / 9;
     background: #24453b;
-    border: 1px solid #637463;
+    outline: 1px solid #637463;
     image-rendering: pixelated;
 }
