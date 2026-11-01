@@ -49,7 +49,7 @@ working; press **Ctrl+C** to stop both servers.
 
 - Frontend: `http://127.0.0.1:5173`
 - Backend health check: `http://127.0.0.1:3001/api/health`
-- WebSocket endpoint: `/ws` (connection setup only; no message handlers yet)
+- WebSocket endpoint: `/ws` (message types in `shared/protocol.js`; lobby and draw/discard play work, claims and wins do not yet)
 
 During development, Vite forwards `/api` and `/ws` requests to the backend.
 Frontend edits reload automatically, and the backend restarts when its source
@@ -77,7 +77,9 @@ is ignored by Git; `.env.example` is shared with the team.
 | `npm run dev:server` | Start only the backend with file watching |
 | `npm run build` | Build the frontend into `frontend/dist/` |
 | `npm run preview` | Preview the built frontend locally |
-| `npm start` | Start the backend without file watching |
+| `npm start` | Start the backend without file watching; serves `frontend/dist` if built |
+| `npm test` | Run backend tests in `backend/test/` |
+| `npm run bots -- [gameId] [count]` | Fill seats with bots that auto-discard (default: create a game, 3 bots) |
 
 To check the frontend build:
 
@@ -118,3 +120,14 @@ docs/
 ```
 
 See [rules notes](docs/rules-notes.md) for gameplay planning.
+
+## Deploying to Render
+
+Create a **Web Service** from this repository:
+
+- Build command: `npm ci && npm run build`
+- Start command: `npm start`
+
+The backend serves the built frontend from `frontend/dist`, so the page and the
+`/ws` WebSocket share one URL. Render sets `PORT` and `RENDER`, and the server
+binds to `0.0.0.0` when `RENDER` is set.
