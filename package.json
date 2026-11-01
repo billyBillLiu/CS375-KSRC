@@ -11,7 +11,6 @@
     "build": "vite build --config frontend/vite.config.js",
     "start": "node --env-file-if-exists=.env backend/src/index.js",
     "preview": "vite preview --config frontend/vite.config.js",
-    "bots": "node scripts/bots.js",
     "test": "node --test \"backend/test/**/*.test.js\""
   },
   "dependencies": { "ws": "^8.18.3" },

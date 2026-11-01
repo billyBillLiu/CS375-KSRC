@@ -1,50 +1,44 @@
-import { C2S, S2C } from '../../../shared/protocol.js';
-import { GameError } from '../rooms/room.js';
-import { send } from './send.js';
+import { CLIENT_MESSAGES, SERVER_MESSAGES, createMessage, parseMessage } from '../../../shared/protocol.js';
+import { RoomError } from '../rooms/manager.js';
 
-// Returns a handler that parses one raw WebSocket message and routes it to the manager.
-export function createMessageHandler(manager) {
+// Returns a handler that validates one raw WebSocket message and routes it to the room manager.
+export function createMessageHandler(rooms) {
     return function handleMessage(socket, raw) {
-        let message;
-        try {
-            message = JSON.parse(raw);
-        } catch {
-            return send(socket, S2C.ERROR, { reason: 'bad json' });
+        const message = parseMessage(String(raw));
+        if (!message) {
+            sendError(socket, 'malformed message');
+            return;
         }
-        if (!message || typeof message.type !== 'string') {
-            return send(socket, S2C.ERROR, { reason: 'missing type' });
-        }
-
         try {
-            route(manager, socket, message.type, message.payload ?? {});
+            route(rooms, socket, message);
         } catch (error) {
-            if (error instanceof GameError) return send(socket, S2C.ERROR, { reason: error.message });
-            console.error(error);
-            send(socket, S2C.ERROR, { reason: 'server error' });
+            if (!(error instanceof RoomError)) {
+                console.error(error);
+                sendError(socket, 'server error');
+                return;
+            }
+            sendError(socket, error.message);
         }
     };
 }
 
-function route(manager, socket, type, payload) {
-    if (type === C2S.HELLO) return manager.hello(socket, payload);
-    const player = socket.player;
-    if (!player) throw new GameError('send hello first');
-
+function route(rooms, socket, { type, payload }) {
     switch (type) {
-        case C2S.CREATE_GAME:
-            return manager.createGame(player);
-        case C2S.JOIN_GAME:
-            return manager.joinGame(player, payload.gameId);
-        case C2S.LEAVE_GAME:
-            return manager.leaveGame(player);
-        case C2S.DISCARD:
-            return manager.discard(player, payload.tile);
-        case C2S.CLAIM:
-        case C2S.PASS:
-        case C2S.DECLARE_KONG:
-        case C2S.DECLARE_WIN:
-            throw new GameError(`${type} is not implemented yet`);
+        case CLIENT_MESSAGES.LIST_ROOMS:
+            return rooms.listRooms(socket);
+        case CLIENT_MESSAGES.CREATE_ROOM:
+            return rooms.createRoom(socket, payload.name);
+        case CLIENT_MESSAGES.JOIN_ROOM:
+            return rooms.joinRoom(socket, payload.roomId, payload.name);
+        case CLIENT_MESSAGES.READY:
+            return rooms.setReady(socket, payload.ready);
+        case CLIENT_MESSAGES.LEAVE_ROOM:
+            return rooms.leaveRoom(socket);
         default:
-            throw new GameError(`unknown type ${type}`);
+            throw new RoomError(`unknown message type ${type}`);
     }
+}
+
+function sendError(socket, reason) {
+    socket.send(createMessage(SERVER_MESSAGES.ERROR, { reason }));
 }

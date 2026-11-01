@@ -16,8 +16,8 @@ frontend development server and production build tooling.
 - Optional: bots and a weekly leaderboard for valuable winning hands.
 
 Currently, the repository contains the project scaffold, PNG assets, a responsive
-table background, and HTTP/WebSocket server startup. Lobby and gameplay logic
-are not implemented yet.
+table background, a browser WebSocket connection, and server-side rooms with
+ready status. The lobby UI and gameplay are not implemented yet.
 
 ## Setup
 
@@ -49,7 +49,7 @@ working; press **Ctrl+C** to stop both servers.
 
 - Frontend: `http://127.0.0.1:5173`
 - Backend health check: `http://127.0.0.1:3001/api/health`
-- WebSocket endpoint: `/ws` (message types in `shared/protocol.js`; lobby and draw/discard play work, claims and wins do not yet)
+- WebSocket endpoint: `/ws` (room messages are listed in `shared/protocol.js`)
 
 During development, Vite forwards `/api` and `/ws` requests to the backend.
 Frontend edits reload automatically, and the backend restarts when its source
@@ -79,7 +79,6 @@ is ignored by Git; `.env.example` is shared with the team.
 | `npm run preview` | Preview the built frontend locally |
 | `npm start` | Start the backend without file watching; serves `frontend/dist` if built |
 | `npm test` | Run backend tests in `backend/test/` |
-| `npm run bots -- [gameId] [count]` | Fill seats with bots that auto-discard (default: create a game, 3 bots) |
 
 To check the frontend build:
 
@@ -99,7 +98,7 @@ frontend/
   public/assets/      PNG tile sheets, backgrounds, dice, and gold feather
   src/
     canvas/           Table rendering and input placeholder
-    network/          Browser WebSocket client placeholder
+    network/          Browser WebSocket client
     ui/               Lobby UI placeholder
     main.js           Frontend entry point
     styles.css        Page styles
@@ -107,12 +106,12 @@ frontend/
 backend/
   src/
     game/             Game state and rules placeholders
-    network/          Message-handler placeholder
-    rooms/            Room-manager placeholder
+    network/          Message validation and routing
+    rooms/            In-memory rooms, seats and ready status
     index.js          HTTP and WebSocket server startup
   test/               Future backend tests
 shared/
-  protocol.js         WebSocket message-contract placeholder
+  protocol.js         WebSocket message names and helpers
 scripts/
   dev.js              Starts and stops both development servers
 python_state_machine/

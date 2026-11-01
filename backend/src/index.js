@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
 import { createMessageHandler } from './network/handlers.js';
-import { createManager } from './rooms/manager.js';
+import { createRoomManager } from './rooms/manager.js';
 import { serveStatic } from './static.js';
 
 // Render sets RENDER=true; it needs 0.0.0.0 to reach the server.
@@ -20,16 +20,17 @@ const server = createServer(async (request, response) => {
     response.end('Not found');
 });
 
-const manager = createManager();
-const handleMessage = createMessageHandler(manager);
+const rooms = createRoomManager();
+const handleMessage = createMessageHandler(rooms);
 
 const sockets = new WebSocketServer({ server, path: '/ws', maxPayload: 16384 });
 sockets.on('connection', (socket) => {
     socket.isAlive = true;
+    rooms.addConnection(socket);
     socket.on('pong', () => { socket.isAlive = true; });
     socket.on('error', console.error);
     socket.on('message', (raw) => handleMessage(socket, raw));
-    socket.on('close', () => manager.disconnect(socket));
+    socket.on('close', () => rooms.removeConnection(socket));
 });
 
 // Drop sockets that miss a ping; also keeps idle connections open behind Render's proxy.

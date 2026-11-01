@@ -134,7 +134,7 @@ Use short, direct functions and add small helpers only when useful.
   errors. **After:** None. **Done when:** A browser exchanges a simple message
   over `/ws`, and the existing health endpoint still works.
 
-- [ ] **M16 — Create, join and leave rooms.** Fill `backend/src/rooms/manager.js`
+- [x] **M16 — Create, join and leave rooms.** Fill `backend/src/rooms/manager.js`
   with in-memory rooms and four seats. Bind each socket to its assigned seat.
   **After:** M15. **Done when:** Four connections can join one room, a fifth is
   rejected, and leaving a waiting room frees the seat.

@@ -1,118 +1,105 @@
-import { randomUUID } from 'node:crypto';
-import { S2C } from '../../../shared/protocol.js';
-import { send } from '../network/send.js';
-import { GameError, Room } from './room.js';
-import * as stubEngine from './stubEngine.js';
+import { MAX_NAME_LENGTH, SEAT_COUNT, SERVER_MESSAGES, createMessage } from '../../../shared/protocol.js';
 
-const MAX_NAME_LENGTH = 20;
+// Thrown for requests the player cannot make; the message is sent back as an error.
+export class RoomError extends Error {}
 
-// Public lobby, anonymous players identified by a session token, and reconnect handling.
-export function createManager({
-    engine = stubEngine,
-    turnMs = 30000,
-    autoMs = 1000,
-    reconnectMs = 60000,
-    random = Math.random,
-} = {}) {
-    const players = new Map(); // token -> { token, name, socket, gameId, reconnectTimer }
+// In-memory rooms with four seats. The server binds each socket to its seat;
+// clients never say which seat they are acting for.
+export function createRoomManager() {
+    const sockets = new Set();
     const rooms = new Map();
+    const membershipBySocket = new Map(); // socket -> { room, seat }
     let nextRoomId = 1;
 
-    function lobby() {
-        const games = [...rooms.values()].filter((room) => room.phase === 'waiting').map((room) => room.summary());
-        return { games };
+    function send(socket, type, payload) {
+        socket.send(createMessage(type, payload));
     }
 
-    function broadcastLobby() {
-        const payload = lobby();
-        for (const player of players.values()) {
-            if (player.socket && !player.gameId) send(player.socket, S2C.LOBBY, payload);
+    function roomSummaries() {
+        return [...rooms.values()].map((room) => ({
+            id: room.id,
+            playerNames: room.seats.filter(Boolean).map((seat) => seat.name),
+            isFull: !room.seats.includes(null),
+        }));
+    }
+
+    function broadcastRoomList() {
+        const payload = { rooms: roomSummaries() };
+        for (const socket of sockets) {
+            if (!membershipBySocket.has(socket)) send(socket, SERVER_MESSAGES.ROOM_LIST, payload);
         }
     }
 
-    function roomChanged(room) {
-        if (!room.hasMembers()) {
-            room.close();
-            rooms.delete(room.id);
-        }
-        broadcastLobby();
+    function broadcastRoomState(room) {
+        const seats = room.seats.map((seat) => seat && { name: seat.name, ready: seat.ready });
+        room.seats.forEach((seat, index) => {
+            if (seat) send(seat.socket, SERVER_MESSAGES.ROOM_STATE, { roomId: room.id, you: index, seats });
+        });
     }
 
-    function roomOf(player) {
-        const room = rooms.get(player.gameId);
-        if (!room) throw new GameError('not in a game');
-        return room;
+    function membershipOf(socket) {
+        const membership = membershipBySocket.get(socket);
+        if (!membership) throw new RoomError('not in a room');
+        return membership;
     }
 
-    function hello(socket, payload) {
-        if (socket.player) throw new GameError('already said hello');
-        const { token, name } = payload && typeof payload === 'object' ? payload : {};
-
-        let player = typeof token === 'string' ? players.get(token) : undefined;
-        if (player) {
-            clearTimeout(player.reconnectTimer);
-            if (player.socket) {
-                const old = player.socket;
-                old.player = null;
-                send(old, S2C.ERROR, { reason: 'opened in another tab' });
-                old.close();
-            }
-        } else {
-            // Unknown or missing token: issue a new one rather than trusting the client's.
-            player = { token: randomUUID(), name: cleanName(name, random), socket: null, gameId: null, reconnectTimer: null };
-            players.set(player.token, player);
-        }
-
-        player.socket = socket;
-        socket.player = player;
-        send(socket, S2C.WELCOME, { token: player.token, name: player.name });
-        const room = rooms.get(player.gameId);
-        if (room) room.broadcast();
-        else send(socket, S2C.LOBBY, lobby());
+    function takeSeat(socket, room, name) {
+        if (membershipBySocket.has(socket)) throw new RoomError('already in a room');
+        const seat = room.seats.indexOf(null);
+        if (seat === -1) throw new RoomError('room is full');
+        room.seats[seat] = { socket, name: cleanName(name, seat), ready: false };
+        membershipBySocket.set(socket, { room, seat });
+        broadcastRoomState(room);
+        broadcastRoomList();
     }
 
-    function createGame(player) {
-        if (player.gameId) throw new GameError('already in a game');
-        const room = new Room(String(nextRoomId++), { engine, turnMs, autoMs, random });
+    function addConnection(socket) {
+        sockets.add(socket);
+    }
+
+    function listRooms(socket) {
+        send(socket, SERVER_MESSAGES.ROOM_LIST, { rooms: roomSummaries() });
+    }
+
+    function createRoom(socket, name) {
+        if (membershipBySocket.has(socket)) throw new RoomError('already in a room');
+        const room = { id: String(nextRoomId++), seats: Array(SEAT_COUNT).fill(null) };
         rooms.set(room.id, room);
-        room.join(player);
-        roomChanged(room);
+        takeSeat(socket, room, name);
     }
 
-    function joinGame(player, gameId) {
-        if (player.gameId) throw new GameError('already in a game');
-        const room = rooms.get(String(gameId));
-        if (!room) throw new GameError('no such game');
-        room.join(player);
-        roomChanged(room);
+    function joinRoom(socket, roomId, name) {
+        const room = rooms.get(String(roomId));
+        if (!room) throw new RoomError('no such room');
+        takeSeat(socket, room, name);
     }
 
-    function leaveGame(player) {
-        const room = roomOf(player);
-        room.leave(player);
-        roomChanged(room);
+    function setReady(socket, ready) {
+        const { room, seat } = membershipOf(socket);
+        room.seats[seat].ready = ready === true;
+        broadcastRoomState(room);
+        // TODO(M18): Start the engine once all four connected seats are ready.
     }
 
-    function discard(player, tile) {
-        roomOf(player).discard(player, tile);
+    function leaveRoom(socket) {
+        const { room, seat } = membershipOf(socket);
+        room.seats[seat] = null;
+        membershipBySocket.delete(socket);
+        if (room.seats.every((s) => s === null)) rooms.delete(room.id);
+        else broadcastRoomState(room);
+        broadcastRoomList();
     }
 
-    // Holds the seat for reconnectMs; after that the player leaves and the seat goes away.
-    function disconnect(socket) {
-        const player = socket.player;
-        if (!player || player.socket !== socket) return;
-        player.socket = null;
-        rooms.get(player.gameId)?.broadcast();
-        player.reconnectTimer = setTimeout(() => {
-            if (rooms.has(player.gameId)) leaveGame(player);
-            players.delete(player.token);
-        }, reconnectMs);
+    // TODO(M24): Once rounds exist, end the active round and tell the others why.
+    function removeConnection(socket) {
+        if (membershipBySocket.has(socket)) leaveRoom(socket);
+        sockets.delete(socket);
     }
 
-    return { hello, createGame, joinGame, leaveGame, discard, disconnect, lobby, rooms, players };
+    return { addConnection, removeConnection, listRooms, createRoom, joinRoom, setReady, leaveRoom };
 }
 
-function cleanName(name, random) {
+function cleanName(name, seat) {
     const cleaned = typeof name === 'string' ? name.replace(/\s+/g, ' ').trim().slice(0, MAX_NAME_LENGTH) : '';
-    return cleaned || `Guest ${1000 + Math.floor(random() * 9000)}`;
+    return cleaned || `Player ${seat + 1}`;
 }

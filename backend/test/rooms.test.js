@@ -1,172 +1,101 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createManager } from '../src/rooms/manager.js';
-import { GameError } from '../src/rooms/room.js';
-import { S2C } from '../../shared/protocol.js';
-
-const TURN_MS = 1000;
-const AUTO_MS = 10;
-const RECONNECT_MS = 5000;
+import { RoomError, createRoomManager } from '../src/rooms/manager.js';
+import { SERVER_MESSAGES } from '../../shared/protocol.js';
 
 function fakeSocket() {
     const sent = [];
     return {
         sent,
-        closed: false,
         send: (data) => sent.push(JSON.parse(data)),
-        close() { this.closed = true; },
-        last(type) { return sent.findLast((m) => m.type === type)?.payload; },
+        last(type) { return sent.findLast((message) => message.type === type)?.payload; },
     };
 }
 
-// Deterministic random so deals and dealers are repeatable.
-function seeded(seed) {
-    return () => {
-        seed = (seed * 1664525 + 1013904223) % 2 ** 32;
-        return seed / 2 ** 32;
-    };
-}
-
-function setup(t) {
-    t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
-    const manager = createManager({ turnMs: TURN_MS, autoMs: AUTO_MS, reconnectMs: RECONNECT_MS, random: seeded(1) });
-    const sockets = [0, 1, 2, 3].map(() => fakeSocket());
-    sockets.forEach((socket, i) => manager.hello(socket, { name: `P${i}` }));
-    const players = sockets.map((socket) => socket.player);
-    return { manager, sockets, players };
-}
-
-function startGame(t) {
-    const ctx = setup(t);
-    ctx.manager.createGame(ctx.players[0]);
-    const gameId = ctx.players[0].gameId;
-    for (const player of ctx.players.slice(1)) ctx.manager.joinGame(player, gameId);
-    ctx.room = ctx.manager.rooms.get(gameId);
-    return ctx;
-}
-
-test('lobby lists open games until four players join', (t) => {
-    const { manager, sockets, players } = setup(t);
-    manager.createGame(players[0]);
-    const gameId = players[0].gameId;
-    assert.deepEqual(sockets[1].last(S2C.LOBBY).games, [{ id: gameId, players: ['P0'], seatsOpen: 3 }]);
-
-    for (const player of players.slice(1)) manager.joinGame(player, gameId);
-    assert.equal(manager.rooms.get(gameId).phase, 'playing');
-
-    const latecomer = fakeSocket();
-    manager.hello(latecomer, {});
-    assert.deepEqual(latecomer.last(S2C.LOBBY).games, []);
-    assert.throws(() => manager.joinGame(latecomer.player, gameId), GameError);
-});
-
-test('each player sees only their own hand', (t) => {
-    const { sockets, room } = startGame(t);
-    const dealer = room.state.dealer;
-    sockets.forEach((socket, seat) => {
-        const view = socket.last(S2C.GAME_STATE);
-        assert.equal(view.seat, seat);
-        assert.equal(view.hand.length, seat === dealer ? 17 : 16);
-        assert.deepEqual(view.hand, [...room.state.hands[seat]].sort((a, b) => a - b));
-        for (const other of view.players) assert.equal(other.hand, undefined);
-        assert.equal(view.wall, undefined);
+function connect(rooms, count) {
+    return Array.from({ length: count }, () => {
+        const socket = fakeSocket();
+        rooms.addConnection(socket);
+        return socket;
     });
+}
+
+test('four connections can join one room and a fifth is rejected', () => {
+    const rooms = createRoomManager();
+    const sockets = connect(rooms, 5);
+    rooms.createRoom(sockets[0], 'Sunny');
+    for (const socket of sockets.slice(1, 4)) rooms.joinRoom(socket, '1', '');
+
+    const state = sockets[3].last(SERVER_MESSAGES.ROOM_STATE);
+    assert.equal(state.you, 3);
+    assert.deepEqual(state.seats.map((seat) => seat.name), ['Sunny', 'Player 2', 'Player 3', 'Player 4']);
+    assert.throws(() => rooms.joinRoom(sockets[4], '1', 'Late'), /room is full/);
+    assert.deepEqual(sockets[4].last(SERVER_MESSAGES.ROOM_LIST).rooms,
+        [{ id: '1', playerNames: ['Sunny', 'Player 2', 'Player 3', 'Player 4'], isFull: true }]);
 });
 
-test('only the current player can discard a tile they hold', (t) => {
-    const { manager, players, room } = startGame(t);
-    const dealer = room.state.dealer;
-    const other = (dealer + 1) % 4;
-    const missing = [...Array(36).keys()].find((tile) => !room.state.hands[dealer].includes(tile));
+test('leaving a waiting room frees the seat for someone else', () => {
+    const rooms = createRoomManager();
+    const sockets = connect(rooms, 3);
+    rooms.createRoom(sockets[0], 'A');
+    rooms.joinRoom(sockets[1], '1', 'B');
+    rooms.leaveRoom(sockets[0]);
 
-    assert.throws(() => manager.discard(players[other], room.state.hands[other][0]), /illegal discard/);
-    assert.throws(() => manager.discard(players[dealer], missing), /illegal discard/);
-    assert.throws(() => manager.discard(players[dealer], '3'), /illegal discard/);
-
-    manager.discard(players[dealer], room.state.hands[dealer][0]);
-    assert.equal(room.state.currentTurn, other);
-    assert.equal(room.state.hands[dealer].length, 16);
-    assert.equal(room.state.hands[other].length, 17);
+    assert.deepEqual(sockets[1].last(SERVER_MESSAGES.ROOM_STATE).seats, [null, { name: 'B', ready: false }, null, null]);
+    rooms.joinRoom(sockets[2], '1', 'C');
+    assert.equal(sockets[2].last(SERVER_MESSAGES.ROOM_STATE).you, 0);
+    assert.equal(sockets[0].last(SERVER_MESSAGES.ROOM_LIST).rooms[0].playerNames.length, 2);
 });
 
-test('turn timer auto-discards the drawn tile', (t) => {
-    const { manager, players, room } = startGame(t);
-    manager.discard(players[room.state.dealer], room.state.hands[room.state.dealer][0]);
-    const seat = room.state.currentTurn;
-    const drawn = room.state.lastDrawn;
-
-    t.mock.timers.tick(TURN_MS - 1);
-    assert.equal(room.state.currentTurn, seat);
-    t.mock.timers.tick(1);
-    assert.equal(room.state.discards[seat].at(-1), drawn);
-    assert.equal(room.state.currentTurn, (seat + 1) % 4);
+test('players outside rooms see the room list update as membership changes', () => {
+    const rooms = createRoomManager();
+    const [host, guest, watcher] = connect(rooms, 3);
+    rooms.createRoom(host, 'Host');
+    assert.deepEqual(watcher.last(SERVER_MESSAGES.ROOM_LIST).rooms, [{ id: '1', playerNames: ['Host'], isFull: false }]);
+    rooms.joinRoom(guest, '1', 'Guest');
+    assert.deepEqual(watcher.last(SERVER_MESSAGES.ROOM_LIST).rooms[0].playerNames, ['Host', 'Guest']);
+    assert.equal(host.sent.filter((message) => message.type === SERVER_MESSAGES.ROOM_LIST).length, 0);
 });
 
-test('reconnecting with the token within the window keeps the seat', (t) => {
-    const { manager, sockets, players, room } = startGame(t);
-    const token = players[2].token;
-    manager.disconnect(sockets[2]);
-    assert.equal(sockets[0].last(S2C.GAME_STATE).players[2].connected, false);
-
-    t.mock.timers.tick(RECONNECT_MS - 1);
-    const fresh = fakeSocket();
-    manager.hello(fresh, { token });
-    assert.equal(fresh.player, players[2]);
-    assert.equal(fresh.last(S2C.WELCOME).token, token);
-    assert.deepEqual(fresh.last(S2C.GAME_STATE).hand, [...room.state.hands[2]].sort((a, b) => a - b));
-
-    t.mock.timers.tick(RECONNECT_MS);
-    assert.equal(room.away[2], false);
+test('ready status is shared with everyone in the room', () => {
+    const rooms = createRoomManager();
+    const [host, guest] = connect(rooms, 2);
+    rooms.createRoom(host, 'Host');
+    rooms.joinRoom(guest, '1', 'Guest');
+    rooms.setReady(guest, true);
+    assert.deepEqual(host.last(SERVER_MESSAGES.ROOM_STATE).seats[1], { name: 'Guest', ready: true });
+    rooms.setReady(guest, 'yes');
+    assert.equal(host.last(SERVER_MESSAGES.ROOM_STATE).seats[1].ready, false);
 });
 
-test('missing the reconnect window makes the seat play itself', (t) => {
-    const { manager, sockets, players, room } = startGame(t);
-    manager.disconnect(sockets[2]);
-    t.mock.timers.tick(RECONNECT_MS);
-    assert.equal(room.away[2], true);
-    assert.equal(players[2].gameId, null);
-    assert.equal(manager.players.has(players[2].token), false);
+test('a closed connection leaves its room and empty rooms are removed', () => {
+    const rooms = createRoomManager();
+    const [host, guest, watcher] = connect(rooms, 3);
+    rooms.createRoom(host, 'Host');
+    rooms.joinRoom(guest, '1', 'Guest');
 
-    const fresh = fakeSocket();
-    manager.hello(fresh, { token: players[2].token });
-    assert.notEqual(fresh.last(S2C.WELCOME).token, players[2].token);
+    rooms.removeConnection(guest);
+    assert.deepEqual(host.last(SERVER_MESSAGES.ROOM_STATE).seats[1], null);
+    rooms.removeConnection(host);
+    assert.deepEqual(watcher.last(SERVER_MESSAGES.ROOM_LIST).rooms, []);
+    assert.throws(() => rooms.joinRoom(watcher, '1', 'W'), /no such room/);
 });
 
-test('a second tab with the same token replaces the first', (t) => {
-    const { manager, sockets, players } = setup(t);
-    const second = fakeSocket();
-    manager.hello(second, { token: players[0].token });
-    assert.equal(sockets[0].closed, true);
-    assert.equal(sockets[0].last(S2C.ERROR).reason, 'opened in another tab');
-    manager.disconnect(sockets[0]);
-    assert.equal(players[0].socket, second);
+test('room requests are rejected when they do not fit the player\'s membership', () => {
+    const rooms = createRoomManager();
+    const [socket] = connect(rooms, 1);
+    assert.throws(() => rooms.setReady(socket, true), RoomError);
+    assert.throws(() => rooms.leaveRoom(socket), /not in a room/);
+    rooms.createRoom(socket, 'A');
+    assert.throws(() => rooms.createRoom(socket, 'A'), /already in a room/);
+    assert.throws(() => rooms.joinRoom(socket, '1', 'A'), /already in a room/);
 });
 
-test('a full game runs until the wall is empty without losing tiles', (t) => {
-    const { manager, sockets, players, room } = startGame(t);
-    for (let i = 0; i < 200 && room.phase === 'playing'; i++) {
-        const seat = room.state.currentTurn;
-        manager.discard(players[seat], room.state.hands[seat][0]);
-        const { wall, hands, discards } = room.state;
-        assert.equal(wall.length + hands.flat().length + discards.flat().length, 144);
-    }
-    assert.equal(room.phase, 'over');
-    assert.deepEqual(sockets[0].last(S2C.GAME_OVER), { winner: null, reason: 'wall empty' });
-    assert.equal(sockets[0].last(S2C.GAME_STATE).currentTurn, null);
-});
-
-test('the room is deleted once everyone leaves', (t) => {
-    const { manager, players, room } = startGame(t);
-    for (const player of players) manager.leaveGame(player);
-    assert.equal(manager.rooms.size, 0);
-    assert.equal(room.timer, null);
-});
-
-test('leaving mid-game hands the seat to auto-discard', (t) => {
-    const { manager, players, room } = startGame(t);
-    const dealer = room.state.dealer;
-    manager.leaveGame(players[dealer]);
-    assert.equal(room.away[dealer], true);
-    t.mock.timers.tick(AUTO_MS);
-    assert.equal(room.state.currentTurn, (dealer + 1) % 4);
+test('names are trimmed, shortened and default to the seat number', () => {
+    const rooms = createRoomManager();
+    const [first, second] = connect(rooms, 2);
+    rooms.createRoom(first, '   ');
+    rooms.joinRoom(second, '1', `  ${'x'.repeat(30)}  `);
+    const names = second.last(SERVER_MESSAGES.ROOM_STATE).seats.slice(0, 2).map((seat) => seat.name);
+    assert.deepEqual(names, ['Player 1', 'x'.repeat(20)]);
 });

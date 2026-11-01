@@ -1,36 +1,38 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createMessageHandler } from '../src/network/handlers.js';
-import { createManager } from '../src/rooms/manager.js';
-import { C2S, S2C } from '../../shared/protocol.js';
+import { createRoomManager } from '../src/rooms/manager.js';
+import { CLIENT_MESSAGES, SERVER_MESSAGES } from '../../shared/protocol.js';
 
-function fakeSocket() {
+function setup() {
+    const rooms = createRoomManager();
+    const handleMessage = createMessageHandler(rooms);
     const sent = [];
-    return { sent, send: (data) => sent.push(JSON.parse(data)), close() {} };
+    const socket = { send: (data) => sent.push(JSON.parse(data)) };
+    rooms.addConnection(socket);
+    const receive = (message) => handleMessage(socket, typeof message === 'string' ? message : JSON.stringify(message));
+    return { sent, receive };
 }
 
-const handleMessage = createMessageHandler(createManager());
-
-test('hello gets a welcome with a new token and the lobby', () => {
-    const socket = fakeSocket();
-    handleMessage(socket, JSON.stringify({ type: C2S.HELLO, payload: { name: 'Sunny' } }));
-    assert.deepEqual(socket.sent.map((m) => m.type), [S2C.WELCOME, S2C.LOBBY]);
-    assert.equal(socket.sent[0].payload.name, 'Sunny');
-    assert.equal(typeof socket.sent[0].payload.token, 'string');
+test('listRooms gets the room list', () => {
+    const { sent, receive } = setup();
+    receive({ type: CLIENT_MESSAGES.LIST_ROOMS });
+    assert.deepEqual(sent, [{ type: SERVER_MESSAGES.ROOM_LIST, payload: { rooms: [] } }]);
 });
 
-test('invalid json gets an error', () => {
-    const socket = fakeSocket();
-    handleMessage(socket, 'not json');
-    assert.deepEqual(socket.sent, [{ type: S2C.ERROR, payload: { reason: 'bad json' } }]);
+test('malformed messages and unknown types get a readable error', () => {
+    const { sent, receive } = setup();
+    receive('not json');
+    receive('null');
+    receive({ payload: {} });
+    receive({ type: 'nope' });
+    assert.deepEqual(sent.map((message) => message.payload.reason),
+        ['malformed message', 'malformed message', 'malformed message', 'unknown message type nope']);
 });
 
-test('missing type, no hello, and unknown type get errors', () => {
-    const socket = fakeSocket();
-    handleMessage(socket, 'null');
-    handleMessage(socket, JSON.stringify({ type: C2S.CREATE_GAME }));
-    handleMessage(socket, JSON.stringify({ type: C2S.HELLO }));
-    handleMessage(socket, JSON.stringify({ type: 'nope' }));
-    const reasons = socket.sent.filter((m) => m.type === S2C.ERROR).map((m) => m.payload.reason);
-    assert.deepEqual(reasons, ['missing type', 'send hello first', 'unknown type nope']);
+test('room errors are sent back instead of crashing', () => {
+    const { sent, receive } = setup();
+    receive({ type: CLIENT_MESSAGES.JOIN_ROOM, payload: { roomId: '42', name: 'A' } });
+    receive({ type: CLIENT_MESSAGES.READY, payload: 'not an object' });
+    assert.deepEqual(sent.map((message) => message.payload.reason), ['no such room', 'not in a room']);
 });
