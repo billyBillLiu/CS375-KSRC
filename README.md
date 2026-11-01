@@ -16,7 +16,8 @@ frontend development server and production build tooling.
 - Optional: bots and a weekly leaderboard for valuable winning hands.
 
 Currently, the repository contains the project scaffold, PNG assets, a responsive
-table background, and HTTP/WebSocket server startup. Lobby and gameplay logic
+table background with sample 1WAN and tile-back sprites, and HTTP/WebSocket server
+startup. Lobby and gameplay logic
 are not implemented yet.
 
 ## Setup
