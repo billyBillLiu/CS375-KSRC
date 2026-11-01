@@ -127,7 +127,7 @@ Use short, direct functions and add small helpers only when useful.
 
 ## 3. Connect four browsers
 
-- [ ] **M15 — Connect the browser to the server.** Fill
+- [X] **M15 — Connect the browser to the server.** Fill
   `frontend/src/network/client.js` and `backend/src/network/handlers.js`; register
   handlers in `backend/src/index.js`. Put message names and small shared helpers
   in `shared/protocol.js` as needed. Catch malformed messages and show connection
