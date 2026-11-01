@@ -35,7 +35,7 @@ that gameplay has been implemented.
 
 ## 1. Get a table on screen
 
-- [ ] **M01 — Show the table background.** In `frontend/src/canvas/renderer.js`
+- [x] **M01 — Show the table background.** In `frontend/src/canvas/renderer.js`
   and `main.js`, load the existing background images and draw them on a responsive
   16:9 Canvas using 384×216 logical coordinates. Show a message if loading fails.
   **After:** None. **Done when:** `npm run dev` shows the table without stretching
