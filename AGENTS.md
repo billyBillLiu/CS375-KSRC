@@ -110,3 +110,4 @@ avoid extra frameworks, documentation layers and abstractions without a current 
 - New branch should be based off of main, unless stated by user otherwise.
 - Naming scheme of branch should be <task_number>: one-line title. Example: M01: Show the table background.
 - Do NOT stage, commit, or push unless specifically requested to do so by user.
+- If you do not have access to the .git dir, notify the user and provide the appropriate recommended instructions to allow access.
