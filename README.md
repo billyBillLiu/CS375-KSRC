@@ -113,6 +113,14 @@ shared/
   protocol.js         WebSocket message-contract placeholder
 scripts/
   dev.js              Starts and stops both development servers
+python_state_machine/
+  __init__.py
+  __main__.py
+  bot.py
+  game.py
+  rules.py
+  state.py
+  tiles.py
 docs/
   rules-notes.md      Gameplay planning notes
 ```
