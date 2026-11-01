@@ -15,9 +15,9 @@ frontend development server and production build tooling.
 - Live Mahjong gameplay using the Fuzhou ruleset.
 - Optional: bots and a weekly leaderboard for valuable winning hands.
 
-Currently, the repository contains the project scaffold, PNG assets, a blank
-Canvas page, and HTTP/WebSocket server startup. Lobby and gameplay logic are
-not implemented yet.
+Currently, the repository contains the project scaffold, PNG assets, a responsive
+table background, and HTTP/WebSocket server startup. Lobby and gameplay logic
+are not implemented yet.
 
 ## Setup
 
@@ -96,7 +96,7 @@ frontend/
   index.html          Page shell and game Canvas
   public/assets/      PNG tile sheets, backgrounds, dice, and gold feather
   src/
-    canvas/           Rendering and input placeholders
+    canvas/           Table rendering and input placeholder
     network/          Browser WebSocket client placeholder
     ui/               Lobby UI placeholder
     main.js           Frontend entry point
