@@ -41,7 +41,7 @@ that gameplay has been implemented.
   **After:** None. **Done when:** `npm run dev` shows the table without stretching
   when the browser is resized.
 
-- [ ] **M02 — Draw one tile from the sprite sheet.** Add `canvas/atlas.js` with
+- [x] **M02 — Draw one tile from the sprite sheet.** Add `canvas/atlas.js` with
   an image loader and named crop records. Start with `1WAN` and one tile back;
   draw both on the table. **After:** M01. **Done when:** Both sprites are clear
   and contain no pixels from neighboring sprites.
