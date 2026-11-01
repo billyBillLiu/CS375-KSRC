@@ -102,3 +102,11 @@ avoid extra frameworks, documentation layers and abstractions without a current 
   `roadmap-tasks.md`. Mark tasks complete only when their completion checks pass.
 - Document implemented behavior accurately. Do not describe planned features as
   working, or expand MVP scope merely to satisfy an older document.
+
+## Workflow
+
+- When asked to complete a named task, create a new branch. 
+- Make sure main is up to date before creating the new branch (git pull).
+- New branch should be based off of main, unless stated by user otherwise.
+- Naming scheme of branch should be <task_number>: one-line title. Example: M01: Show the table background.
+- Do NOT stage, commit, or push unless specifically requested to do so by user.
