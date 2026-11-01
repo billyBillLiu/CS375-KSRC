@@ -1,14 +1,7 @@
+import { backs, drawSprite, loadAtlas, loadImage, tiles } from './atlas.js';
+
 const TABLE_WIDTH = 384;
 const TABLE_HEIGHT = 216;
-
-function loadImage(source) {
-    return new Promise((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = () => reject(new Error(`Could not load ${source}`));
-        image.src = source;
-    });
-}
 
 export async function initializeRenderer(canvas) {
     const context = canvas.getContext('2d');
@@ -16,9 +9,10 @@ export async function initializeRenderer(canvas) {
         throw new Error('Canvas rendering is unavailable.');
     }
 
-    const [table, border] = await Promise.all([
+    const [table, border, atlas] = await Promise.all([
         loadImage(`${import.meta.env.BASE_URL}assets/background_table.png`),
         loadImage(`${import.meta.env.BASE_URL}assets/background_border.png`),
+        loadAtlas(),
     ]);
 
     function draw() {
@@ -31,6 +25,8 @@ export async function initializeRenderer(canvas) {
         context.imageSmoothingEnabled = false;
         context.drawImage(table, 0, 0, TABLE_WIDTH, TABLE_HEIGHT);
         context.drawImage(border, 0, 0, TABLE_WIDTH, TABLE_HEIGHT);
+        drawSprite(context, atlas, backs.north, 192, 41);
+        drawSprite(context, atlas, tiles['1WAN'].hand, 192, 178);
     }
 
     const resizeObserver = new ResizeObserver(draw);

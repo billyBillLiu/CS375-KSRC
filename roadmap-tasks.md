@@ -41,7 +41,7 @@ that gameplay has been implemented.
   **After:** None. **Done when:** `npm run dev` shows the table without stretching
   when the browser is resized.
 
-- [ ] **M02 — Draw one tile from the sprite sheet.** Add `canvas/atlas.js` with
+- [x] **M02 — Draw one tile from the sprite sheet.** Add `canvas/atlas.js` with
   an image loader and named crop records. Start with `1WAN` and one tile back;
   draw both on the table. **After:** M01. **Done when:** Both sprites are clear
   and contain no pixels from neighboring sprites.
@@ -127,14 +127,14 @@ Use short, direct functions and add small helpers only when useful.
 
 ## 3. Connect four browsers
 
-- [ ] **M15 — Connect the browser to the server.** Fill
+- [X] **M15 — Connect the browser to the server.** Fill
   `frontend/src/network/client.js` and `backend/src/network/handlers.js`; register
   handlers in `backend/src/index.js`. Put message names and small shared helpers
   in `shared/protocol.js` as needed. Catch malformed messages and show connection
   errors. **After:** None. **Done when:** A browser exchanges a simple message
   over `/ws`, and the existing health endpoint still works.
 
-- [ ] **M16 — Create, join and leave rooms.** Fill `backend/src/rooms/manager.js`
+- [x] **M16 — Create, join and leave rooms.** Fill `backend/src/rooms/manager.js`
   with in-memory rooms and four seats. Bind each socket to its assigned seat.
   **After:** M15. **Done when:** Four connections can join one room, a fifth is
   rejected, and leaving a waiting room frees the seat.
