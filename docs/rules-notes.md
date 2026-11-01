@@ -18,12 +18,12 @@ A winning hand consists of:
 ### Chi
 - Claim a **consecutive triplet**
 - Only allowed from the **player to your left**
-- Draw afterwards
+- Discard **1 tile**
 
 ### Peng
 - Claim an **identical triplet or quadruplet** from **any player's discard**
 - Takes **precedence over Chi**
-- Draw afterwards
+- Discard **1 tile**
 
 ### Kong (Same as Peng but for quadruplets)
 - If you already hold a **hidden triplet** (dragon or wind):
