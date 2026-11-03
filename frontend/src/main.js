@@ -24,7 +24,6 @@ const connection = connectToServer({
 
 try {
     await initializeRenderer(canvas);
-    status.textContent = 'Table ready — lobby and gameplay coming next.';
 } catch (error) {
     status.textContent = 'Unable to load the Mahjong table. Please reload to try again.';
     console.error(error);

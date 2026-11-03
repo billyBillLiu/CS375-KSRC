@@ -14,6 +14,8 @@ frontend development server and production build tooling.
 - Disconnection handling.
 - Live Mahjong gameplay using the Fuzhou ruleset.
 - Optional: bots and a weekly leaderboard for valuable winning hands.
+- Saved sessions and session game state so people can rejoin.
+- Lobby code creation and joining system.
 
 Currently, the repository contains the project scaffold, PNG assets, a responsive
 table background, a browser WebSocket connection, and server-side rooms with
