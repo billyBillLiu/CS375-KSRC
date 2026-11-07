@@ -10,6 +10,16 @@ body { margin: 0; }
 main { width: min(1200px, 100%); margin: auto; padding: 24px; }
 h1 { margin: 0; }
 header p, .status, .connection-status { color: #b5c5bc; }
+h2 { margin: 16px 0 8px; font-size: 1.1rem; }
+.lobby { margin: 16px 0; padding: 16px; border: 1px solid #637463; background: #1f3a33; }
+.lobby[inert] { opacity: 0.5; }
+.lobby-create { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.lobby-list { margin: 0 0 12px; padding-left: 24px; }
+.lobby-list li { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 4px 0; }
+#room-list li { justify-content: space-between; }
+.seat-empty { color: #8a9a90; }
+.seat-ready { color: #9fdc9f; }
+input, button { font: inherit; padding: 4px 10px; }
 canvas {
     display: block;
     width: 100%;
