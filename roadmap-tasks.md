@@ -76,7 +76,7 @@ Use short, direct functions and add small helpers only when useful.
   **After:** None. **Done when:** A new wall has the Python inventory and no
   duplicate instance IDs.
 
-- [ ] **M07 — Deal and replace setup specials.** Add `game/engine.js`. Deal
+- [x] **M07 — Deal and replace setup specials.** Add `game/engine.js`. Deal
   four packets of four to each player, then one extra to seat 0. Repeat reverse
   hand scans, replacing specials from the back; reveal a non-special Gold tile
   and retain skipped Gold specials for accounting. Allow an explicit wall for

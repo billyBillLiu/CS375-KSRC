@@ -14,6 +14,8 @@ frontend development server and production build tooling.
 - Disconnection handling.
 - Live Mahjong gameplay using the Fuzhou ruleset.
 - Optional: bots and a weekly leaderboard for valuable winning hands.
+- Saved sessions and session game state so people can rejoin.
+- Lobby code creation and joining system.
 
 Currently, the repository contains the project scaffold, PNG assets, a responsive
 table background, a browser WebSocket connection, and server-side rooms with
@@ -110,7 +112,7 @@ frontend/
   vite.config.js      Development proxy and build configuration
 backend/
   src/
-    game/             Tile inventory and round state; rules placeholder
+    game/             Tile inventory, round state and setup; rules placeholder
     network/          Message validation and routing
     rooms/            In-memory rooms, seats and ready status
     index.js          HTTP and WebSocket server startup
