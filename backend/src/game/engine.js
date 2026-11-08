@@ -36,20 +36,42 @@ export function drawBack(state, seat) {
     return drawTile(state, seat, true);
 }
 
-function drawTile(state, seat, fromBack) {
+export function discard(state, seat, tileInstanceId) {
+    validateTurn(state, seat, 'discard');
+    if (typeof tileInstanceId !== 'string' || tileInstanceId.length === 0) {
+        throw new Error('Tile instance ID must be a non-empty string');
+    }
+    const player = state.players[seat];
+    const index = player.concealed.findIndex((tile) => tile.id === tileInstanceId);
+    if (index === -1) throw new Error('Tile is not in this player\'s concealed hand');
+
+    const [tile] = player.concealed.splice(index, 1);
+    settlePendingDiscard(state);
+    state.pendingDiscard = { tile, fromSeat: seat };
+    state.phase = 'claims';
+    return state;
+}
+
+function validateTurn(state, seat, expectedPhase) {
     if (!Number.isInteger(seat) || seat < 0 || seat >= state.players.length) {
         throw new Error('Player seat must be 0, 1, 2 or 3');
     }
     if (seat !== state.currentSeat) throw new Error('It is not this player\'s turn');
-    const expectedPhase = fromBack ? 'drawBack' : 'drawFront';
     if (state.phase !== expectedPhase) throw new Error(`Cannot ${expectedPhase} during ${state.phase}`);
+}
 
-    // Drawing gives up any claim on the previous discard.
+function settlePendingDiscard(state) {
     if (state.pendingDiscard) {
         const { tile, fromSeat } = state.pendingDiscard;
         state.players[fromSeat].discards.push(tile);
         state.pendingDiscard = null;
     }
+}
+
+function drawTile(state, seat, fromBack) {
+    validateTurn(state, seat, fromBack ? 'drawBack' : 'drawFront');
+    // Drawing gives up any claim on the previous discard.
+    settlePendingDiscard(state);
 
     const tile = takeTile(state, fromBack);
     if (tile === null) return state;

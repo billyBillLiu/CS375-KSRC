@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRound, drawBack, drawFront } from '../src/game/engine.js';
+import { createRound, discard, drawBack, drawFront } from '../src/game/engine.js';
 import { createRoundState } from '../src/game/state.js';
 import { buildWall, isSpecial } from '../src/game/tiles.js';
 
@@ -138,7 +138,7 @@ test('explicit walls reject unknown faces and malformed input', () => {
 
 const waitingHand = '1WAN 2WAN 3WAN 4WAN 5WAN 6WAN 2TAO 2TAO 2TAO 4TAO 5TAO 6TAO 7BIN 8BIN 5BIN 5BIN'.split(' ');
 
-// Start at a later turn without implementing discard/claim transitions in these tests.
+// Start at a later turn without implementing claim resolution in these tests.
 function createDrawState(wall, seat = 1, hand = waitingHand) {
     const state = createRoundState({ wall: [...hand, ...wall, '9TAO'] });
     state.players[seat].concealed = state.wall.splice(0, hand.length);
@@ -350,4 +350,135 @@ test('a legal draw settles the pending discard once, while an illegal draw leave
     drawBack(state, 1);
     assert.deepEqual(state.players[0].discards, [pendingTile]);
     assertConservation(state, [...waitingHand, ...wall, '9TAO']);
+});
+
+function assertRejectedDiscard(state, seat, tileId) {
+    const before = structuredClone(state);
+    assert.throws(() => discard(state, seat, tileId), /seat|turn|Cannot|instance ID|concealed hand/);
+    assert.deepEqual(state, before);
+}
+
+test('discard moves the exact owned instance into claims and preserves matching copies', () => {
+    const wall = faces(buildWall());
+    const state = createRound({ wall });
+    const before = structuredClone(state);
+    const hand = [...state.players[0].concealed];
+    const selected = hand[1];
+    assert.equal(hand[0].tileId, selected.tileId);
+    assert.notEqual(hand[0].id, selected.id);
+
+    assert.equal(discard(state, 0, selected.id), state);
+    assert.deepEqual(state.players[0].concealed, hand.filter((tile) => tile !== selected));
+    assert.equal(state.pendingDiscard.tile, selected);
+    assert.equal(state.pendingDiscard.fromSeat, 0);
+    assert.equal(state.phase, 'claims');
+    assert.equal(state.currentSeat, 0);
+    assert.equal(state.winner, null);
+    assert.equal(state.endReason, null);
+    assert.deepEqual(state.wall, before.wall);
+    assert.deepEqual(state.gold, before.gold);
+    assert.deepEqual(state.players.slice(1), before.players.slice(1));
+    assert.deepEqual(state.players[0].discards, []);
+    assertConservation(state, wall);
+
+    assertRejectedDiscard(state, 0, selected.id);
+    assertRejectedDiscard(state, 0, hand[0].id);
+    assertRejectedDraw(state, drawFront, 0);
+    assertRejectedDraw(state, drawBack, 0);
+});
+
+test('each seat can discard after a normal draw or back replacement, even with an empty wall', () => {
+    for (const wall of [['1BIN'], ['FLO_1', '1BIN']]) {
+        for (let seat = 0; seat < 4; seat++) {
+            const state = createDrawState(wall, seat);
+            drawFront(state, seat);
+            if (state.phase === 'drawBack') drawBack(state, seat);
+            assert.equal(state.phase, 'discard');
+            assert.equal(state.wall.length, 0);
+            const selected = state.players[seat].concealed.find((tile) => tile.tileId === '1BIN');
+            discard(state, seat, selected.id);
+            assert.equal(state.phase, 'claims');
+            assert.equal(state.endReason, null);
+            assert.equal(state.currentSeat, seat);
+            assert.equal(state.players[seat].concealed.length, 16);
+            assert.deepEqual(state.pendingDiscard, { tile: selected, fromSeat: seat });
+            assertConservation(state, [...waitingHand, ...wall, '9TAO']);
+        }
+    }
+});
+
+test('a concealed Gold tile can be discarded without moving the Gold indicator', () => {
+    const hand = [...waitingHand, '1BIN'];
+    hand[0] = '9TAO';
+    const wall = wallForDealerHand(hand, '9TAO');
+    const state = createRound({ wall });
+    assert.equal(state.phase, 'discard');
+    const indicator = state.gold;
+    const selected = state.players[0].concealed.find((tile) => tile.tileId === indicator.tileId);
+    assert.notEqual(selected.id, indicator.id);
+    discard(state, 0, selected.id);
+    assert.equal(state.pendingDiscard.tile, selected);
+    assert.equal(state.gold, indicator);
+    assertConservation(state, wall);
+});
+
+test('discard rejects invalid seats and every phase other than discard without mutation', () => {
+    const state = createDrawState(['1BIN']);
+    drawFront(state, 1);
+    const selected = state.players[1].concealed[0];
+    for (const seat of [-1, 4, 1.5, '1', NaN, null, undefined, 0, 2, 3]) {
+        assertRejectedDiscard(state, seat, selected.id);
+    }
+    for (const phase of ['setup', 'drawFront', 'drawBack', 'claims', 'over']) {
+        state.phase = phase;
+        assertRejectedDiscard(state, 1, selected.id);
+    }
+});
+
+test('discard rejects malformed IDs, face names and unknown instances', () => {
+    const state = createRound({ wall: faces(buildWall()) });
+    const selected = state.players[0].concealed[0];
+    for (const id of [undefined, null, 0, '', [], {}, { id: selected.id }, selected.tileId, 'missing-tile']) {
+        assertRejectedDiscard(state, 0, id);
+    }
+});
+
+test('only concealed ownership permits discard, even when other zones contain the same face', () => {
+    const wall = faces(buildWall());
+    const state = createRound({ wall });
+    const player = state.players[0];
+    player.melds.push({ id: 0, kind: 'peng', tiles: player.concealed.splice(0, 3), fromSeat: 1 });
+    player.specials.push(state.skippedGoldSpecials.pop());
+    player.discards.push(state.wall.shift());
+    state.pendingDiscard = { tile: state.wall.shift(), fromSeat: 3 };
+    const forbidden = [
+        state.wall[0], state.gold, state.skippedGoldSpecials[0], state.pendingDiscard.tile,
+        state.players[1].concealed[0], player.melds[0].tiles[0], player.specials[0], player.discards[0],
+    ];
+    assert.equal(player.melds[0].tiles[0].tileId, player.concealed[0].tileId);
+    for (const tile of forbidden) assertRejectedDiscard(state, 0, tile.id);
+
+    const selected = player.concealed[0];
+    discard(state, 0, selected.id);
+    assert.equal(state.pendingDiscard.tile, selected);
+    assert.equal(player.concealed.length, 13);
+    assertConservation(state, wall);
+});
+
+test('discard settles an older pending tile once before replacing it with the new discard', () => {
+    const wall = faces(buildWall());
+    const state = createRound({ wall });
+    const settledTile = state.wall.shift();
+    const previousTile = state.wall.shift();
+    state.players[3].discards.push(settledTile);
+    state.pendingDiscard = { tile: previousTile, fromSeat: 3 };
+    assertRejectedDiscard(state, 0, 'missing-tile');
+    assertRejectedDiscard(state, 0, previousTile.id);
+    const selected = state.players[0].concealed[0];
+    discard(state, 0, selected.id);
+    assert.deepEqual(state.players[3].discards, [settledTile, previousTile]);
+    assert.deepEqual(state.pendingDiscard, { tile: selected, fromSeat: 0 });
+    assert.deepEqual(state.players[0].discards, []);
+    assertRejectedDiscard(state, 0, selected.id);
+    assertConservation(state, wall);
 });

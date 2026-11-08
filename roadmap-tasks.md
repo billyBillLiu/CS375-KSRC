@@ -94,7 +94,7 @@ Use short, direct functions and add small helpers only when useful.
   terminate on exhaustion. **After:** M07, M08. **Done when:** Dealer starts
   with discard, later turns draw once, and repeated specials use the back.
 
-- [ ] **M10 — Implement discard.** Remove one owned concealed tile by instance
+- [x] **M10 — Implement discard.** Remove one owned concealed tile by instance
   ID and make it the pending discard. Reject wrong-seat, wrong-phase and unowned
   tile actions. **After:** M09. **Done when:** One legal action moves exactly one
   tile; illegal actions leave state unchanged.
