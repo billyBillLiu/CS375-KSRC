@@ -19,7 +19,8 @@ frontend development server and production build tooling.
 
 Currently, the repository contains the project scaffold, PNG assets, a responsive
 table background, a sample mid-round viewer, a browser WebSocket connection, and server-side rooms with
-ready status. The lobby UI and gameplay are not implemented yet.
+ready status. The lobby supports creating, joining and leaving rooms, player names, and ready
+status. Starting a round and live gameplay are not implemented yet.
 
 ## Setup
 

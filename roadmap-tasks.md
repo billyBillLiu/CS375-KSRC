@@ -139,7 +139,7 @@ Use short, direct functions and add small helpers only when useful.
   **After:** M15. **Done when:** Four connections can join one room, a fifth is
   rejected, and leaving a waiting room frees the seat.
 
-- [ ] **M17 — Build the lobby.** Fill `frontend/src/ui/lobby.js` with room list,
+- [x] **M17 — Build the lobby.** Fill `frontend/src/ui/lobby.js` with room list,
   Create, Join, Leave and Ready controls; show player names and readiness.
   **After:** M16. **Done when:** Four browser windows show the same membership
   and readiness without needing console commands.
