@@ -30,6 +30,14 @@ are still pending.
 Gold as a wildcard and count each locked meld (including a Kong) as one group.
 Both checks leave the player's state unchanged; `gold` may be null or omitted.
 
+`getBestClaim(state, seat)` returns the seat's highest-priority claim during phase
+`claims`: Win, Kong, Peng, then Chi. It returns `{ kind, tiles }`, where `tiles`
+contains the concealed instances needed for a meld (empty for Win), or null when
+no claim is available. A seat cannot claim its own discard; only the next seat
+can Chi. `findChiTiles(player, candidate)` finds the first natural matching pair
+in Python order. Neither query changes state. Applying claims and retained Chi
+timing remain for M12–M13.
+
 Use [the Python simulator](../../../python_state_machine/) as the rules baseline,
 with the web changes in [the MVP checklist](../../../roadmap-tasks.md).
 Do not send the wall or opponents' concealed hands

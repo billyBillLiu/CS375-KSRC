@@ -99,7 +99,7 @@ Use short, direct functions and add small helpers only when useful.
   tile actions. **After:** M09. **Done when:** One legal action moves exactly one
   tile; illegal actions leave state unchanged.
 
-- [ ] **M11 — Find available claims.** Add claim predicates in `rules.js`:
+- [x] **M11 — Find available claims.** Add claim predicates in `rules.js`:
   Win, Kong, Peng and Chi in that priority order. Use natural matches for melds,
   allow Chi only for the next seat and choose the first valid Chi combination.
   **After:** M08, M10. **Done when:** Each seat gets its best available claim;
@@ -223,6 +223,12 @@ exact visual polish, pause/reconnect recovery, portrait mobile layout, bots,
 scoring, accounts, leaderboards, dice/dealer rotation, extra Kong types and
 alternate Chi selection. Production hosting is also separate; Vite preview alone
 is not a deployed multiplayer server.
+
+Currently, `getBestClaim` in [backend/src/game/rules.js](backend/src/game/rules.js)
+automatically selects the highest-priority claim and matching tiles, using the
+first valid combination for Chi. After the MVP, let players choose which legal
+meld to form with a discard when multiple melds or tile combinations are possible.
+Keep the current automatic selection for now.
 
 **Start with M01, M06 or M15.** They are independent. The table and game engine
 come together at M18–M19. The MVP is finished when four players can complete a
