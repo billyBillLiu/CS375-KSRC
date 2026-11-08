@@ -14,6 +14,11 @@ or modifying it. Short walls are allowed; exhaustion returns phase `over` with
 Successful setup leaves phase `setup`. Opening win checks and the transition to
 the dealer's first discard are deferred to M09; gameplay actions are not implemented.
 
+`rules.js` exports `isWinningHand(player, gold)` and
+`canWinWithTile(player, candidate, gold)`. They use physical tile objects, treat
+Gold as a wildcard and count each locked meld (including a Kong) as one group.
+Both checks leave the player's state unchanged; `gold` may be null or omitted.
+
 Use [the Python simulator](../../../python_state_machine/) as the rules baseline,
 with the web changes in [the MVP checklist](../../../roadmap-tasks.md).
 Do not send the wall or opponents' concealed hands
