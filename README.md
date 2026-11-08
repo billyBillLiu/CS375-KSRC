@@ -19,7 +19,7 @@ frontend development server and production build tooling.
 
 Currently, the repository contains the project scaffold, PNG assets, a responsive
 table background, a browser WebSocket connection, and server-side rooms with
-ready status. The lobby UI and gameplay are not implemented yet.
+ready status. The lobby UI and browser gameplay are not implemented yet.
 
 ## Setup
 
@@ -112,7 +112,7 @@ frontend/
   vite.config.js      Development proxy and build configuration
 backend/
   src/
-    game/             Tile inventory, round setup and winning-hand checks
+    game/             Tile inventory, setup, draws and winning-hand checks
     network/          Message validation and routing
     rooms/            In-memory rooms, seats and ready status
     index.js          HTTP and WebSocket server startup

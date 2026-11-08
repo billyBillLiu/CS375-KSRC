@@ -88,7 +88,7 @@ Use short, direct functions and add small helpers only when useful.
   **After:** M06. **Done when:** Known winning/non-winning hands give the right
   answer, including Gold at the start/middle/end of a sequence and a locked Kong.
 
-- [ ] **M09 — Implement front and back draws.** In `engine.js`, let the current
+- [x] **M09 — Implement front and back draws.** In `engine.js`, let the current
   player draw from the front; if special, expose it and require a back draw until
   a playable tile arrives. Check self-win after setup and each playable draw;
   terminate on exhaustion. **After:** M07, M08. **Done when:** Dealer starts
