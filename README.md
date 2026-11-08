@@ -105,7 +105,7 @@ frontend/
   vite.config.js      Development proxy and build configuration
 backend/
   src/
-    game/             Game state and rules placeholders
+    game/             Tile inventory and round state; rules placeholder
     network/          Message validation and routing
     rooms/            In-memory rooms, seats and ready status
     index.js          HTTP and WebSocket server startup
