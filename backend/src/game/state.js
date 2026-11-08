@@ -6,7 +6,7 @@ import { buildWall } from './tiles.js';
 // - a fresh wall
 // - blank state for all critical tiles on the board
 // - and a current playerr and dealer set to player 0
-export function createRoundState() {
+export function createRoundState({ wall } = {}) {
     return {
         players: Array.from({ length: SEAT_COUNT }, () => ({
             concealed: [],
@@ -14,7 +14,7 @@ export function createRoundState() {
             specials: [],
             discards: [],
         })),
-        wall: buildWall(),
+        wall: buildWall(wall),
         dealerSeat: 0,
         currentSeat: 0,
         phase: 'setup',

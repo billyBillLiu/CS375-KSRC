@@ -3,7 +3,16 @@
 `tiles.js` creates the 144 physical tiles with opaque IDs and canonical faces.
 `state.js` creates an undealt round with separate ownership containers for the
 wall, each player's tiles, the pending discard, Gold and skipped Gold specials.
-The wall is unshuffled; dealing, transitions and win evaluation are not implemented.
+The undealt wall is unshuffled.
+
+`engine.js` exports `createRound()`, which shuffles, deals, replaces setup specials
+from the back and selects Gold. For deterministic debugging, `createRound({ wall })`
+accepts an array of canonical face strings in front-to-back order without shuffling
+or modifying it. Short walls are allowed; exhaustion returns phase `over` with
+`endReason: 'wall_exhausted'` and preserves all tiles drawn so far.
+
+Successful setup leaves phase `setup`. Opening win checks and the transition to
+the dealer's first discard are deferred to M09; gameplay actions are not implemented.
 
 Use [the Python simulator](../../../python_state_machine/) as the rules baseline,
 with the web changes in [the MVP checklist](../../../roadmap-tasks.md).
