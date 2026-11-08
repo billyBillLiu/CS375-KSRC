@@ -18,8 +18,8 @@ frontend development server and production build tooling.
 - Lobby code creation and joining system.
 
 Currently, the repository contains the project scaffold, PNG assets, a responsive
-table background, a browser WebSocket connection, and server-side rooms with
-ready status. The lobby UI and browser gameplay are not implemented yet.
+table background, a four-hand sample viewer, a browser WebSocket connection, and server-side rooms with
+ready status. The lobby UI and gameplay are not implemented yet.
 
 ## Setup
 
@@ -57,6 +57,12 @@ To inspect the tile artwork during development, open
 **http://127.0.0.1:5173/?atlas**. The labeled preview shows all 42 identities,
 their display variants, and four directional backs. Missing special-tile variants
 reuse scaled/rotated existing artwork. The preview is excluded from production.
+
+To inspect the sample hands, open **http://127.0.0.1:5173/?sample** and switch
+the viewer between seats 0–3. The selected hand appears face-up at the bottom;
+opponents use directional backs. HTML labels identify the absolute seats.
+This preview is development-only. Run its layout tests with
+`node --test frontend/test/layout.test.js`.
 
 During development, Vite forwards `/api` and `/ws` requests to the backend.
 Frontend edits reload automatically, and the backend restarts when its source

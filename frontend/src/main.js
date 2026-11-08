@@ -23,7 +23,15 @@ const connection = connectToServer({
 });
 
 try {
-    await initializeRenderer(canvas);
+    const renderer = await initializeRenderer(canvas);
+    if (import.meta.env.DEV) {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('sample') || params.has('atlas')) {
+            const fixtures = await import('./dev/fixtures.js');
+            if (params.has('sample')) fixtures.showSamplePreview(canvas.parentElement, renderer);
+            if (params.has('atlas')) await fixtures.showAtlasPreview(canvas.parentElement);
+        }
+    }
 } catch (error) {
     status.textContent = 'Unable to load the Mahjong table. Please reload to try again.';
     console.error(error);

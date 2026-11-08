@@ -54,9 +54,9 @@ for (const [identity, [column, row]] of Object.entries(specialPositions)) {
 
 export const backs = {
     south: crop(302, 105, 20, 31),
-    east: crop(254, 377, 16, 31),
+    east: crop(254, 429, 16, 31),
     north: crop(137, 482, 14, 25),
-    west: crop(254, 429, 16, 31),
+    west: crop(254, 377, 16, 31),
 };
 
 export function loadImage(source) {
