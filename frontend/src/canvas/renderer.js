@@ -1,7 +1,6 @@
 import { backs, drawSprite, loadAtlas, loadImage, tiles } from './atlas.js';
 
-const TABLE_WIDTH = 384;
-const TABLE_HEIGHT = 216;
+import { layoutHand, TABLE_WIDTH, TABLE_HEIGHT } from './layout.js';
 
 export async function initializeRenderer(canvas) {
     const context = canvas.getContext('2d');
@@ -15,6 +14,8 @@ export async function initializeRenderer(canvas) {
         loadAtlas(),
     ]);
 
+    let view = null;
+
     function draw() {
         const { width, height } = canvas.getBoundingClientRect();
         const pixelRatio = window.devicePixelRatio || 1;
@@ -25,8 +26,16 @@ export async function initializeRenderer(canvas) {
         context.imageSmoothingEnabled = false;
         context.drawImage(table, 0, 0, TABLE_WIDTH, TABLE_HEIGHT);
         context.drawImage(border, 0, 0, TABLE_WIDTH, TABLE_HEIGHT);
-        drawSprite(context, atlas, backs.north, 192, 41);
-        drawSprite(context, atlas, tiles['1WAN'].hand, 192, 178);
+        if (view) {
+            for (const player of view.players) {
+                const isLocal = player.seat === view.viewerSeat;
+                const positions = layoutHand(player.seat, view.viewerSeat, player.concealedCount);
+                positions.forEach(({ x, y, direction }, index) => {
+                    const sprite = isLocal ? tiles[view.ownHand[index].identity].hand : backs[direction];
+                    drawSprite(context, atlas, sprite, x, y);
+                });
+            }
+        }
     }
 
     const resizeObserver = new ResizeObserver(draw);
@@ -34,8 +43,14 @@ export async function initializeRenderer(canvas) {
     window.addEventListener('resize', draw);
     draw();
 
-    return () => {
-        resizeObserver.disconnect();
-        window.removeEventListener('resize', draw);
+    return {
+        setView(nextView) {
+            view = nextView;
+            draw();
+        },
+        destroy() {
+            resizeObserver.disconnect();
+            window.removeEventListener('resize', draw);
+        },
     };
 }

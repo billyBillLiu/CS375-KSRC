@@ -52,7 +52,7 @@ that gameplay has been implemented.
   `frontend/src/dev/fixtures.js` to inspect them. **After:** M02. **Done when:**
   Every identity and required back can be drawn with the correct face/crop.
 
-- [ ] **M04 — Place four sample hands.** Add `canvas/layout.js` and one hardcoded
+- [x] **M04 — Place four sample hands.** Add `canvas/layout.js` and one hardcoded
   sample state in `dev/fixtures.js`. Draw the local hand at the bottom and opponent
   backs at the other three sides using `plan.md` anchors. **After:** M03.
   **Done when:** Switching the sample viewer between seats 0–3 always puts that
