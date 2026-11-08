@@ -58,3 +58,53 @@ function previewSprite(atlas, sprite, label) {
     drawSprite(context, atlas, sprite, 18, 21);
     return canvas;
 }
+
+// One fixed round: distinct sorted hands make seat switching easy to inspect.
+const sampleState = {
+    players: [
+        ['1WAN', '1WAN', '2WAN', '3WAN', '4WAN', '5WAN', '6WAN', '7WAN', '8WAN', '9WAN', '1TAO', '2TAO', '3TAO', '4TAO', '5TAO', '6TAO', '7TAO'],
+        ['2WAN', '2WAN', '3WAN', '4WAN', '5WAN', '6WAN', '7WAN', '8WAN', '9WAN', '1TAO', '2TAO', '3TAO', '4TAO', '5TAO', '6TAO', '7TAO'],
+        ['1TAO', '2TAO', '3TAO', '4TAO', '5TAO', '6TAO', '7TAO', '8TAO', '9TAO', '1BIN', '2BIN', '3BIN', '4BIN', '5BIN', '6BIN', '7BIN'],
+        ['1BIN', '2BIN', '3BIN', '4BIN', '5BIN', '6BIN', '7BIN', '8BIN', '8BIN', '9BIN', '9BIN', '9WAN', '8WAN', '7WAN', '8TAO', '9TAO'],
+    ].map((identities, seat) => ({
+        seat,
+        hand: identities.sort((a, b) => {
+            const suits = ['WAN', 'TAO', 'BIN'];
+            return suits.indexOf(a.slice(1)) - suits.indexOf(b.slice(1)) || Number(a[0]) - Number(b[0]);
+        }).map((identity, index) => ({ id: `sample-${seat}-${index}`, identity })),
+    })),
+};
+
+export function showSamplePreview(parent, renderer) {
+    const section = document.createElement('section');
+    section.className = 'sample-preview';
+    const label = document.createElement('label');
+    label.textContent = 'Sample viewer seat: ';
+    const select = document.createElement('select');
+    for (const player of sampleState.players) {
+        select.add(new Option(`Seat ${player.seat}`, player.seat));
+    }
+    label.append(select);
+    const summary = document.createElement('p');
+    summary.setAttribute('role', 'status');
+    section.append(label, summary);
+    parent.append(section);
+
+    function updateView() {
+        const viewerSeat = Number(select.value);
+        renderer.setView({
+            viewerSeat,
+            ownHand: sampleState.players[viewerSeat].hand,
+            players: sampleState.players.map(player => ({
+                seat: player.seat,
+                concealedCount: player.hand.length,
+            })),
+        });
+        summary.textContent = ['Bottom', 'Right', 'Top', 'Left'].map((side, offset) => {
+            const seat = (viewerSeat + offset) % 4;
+            return `${side}: seat ${seat} (${sampleState.players[seat].hand.length} tiles)`;
+        }).join(' · ');
+    }
+    select.addEventListener('change', updateView);
+    updateView();
+}
