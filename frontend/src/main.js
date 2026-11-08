@@ -25,6 +25,10 @@ const connection = connectToServer({
 try {
     await initializeRenderer(canvas);
     status.textContent = 'Table ready — lobby and gameplay coming next.';
+    if (import.meta.env.DEV && new URLSearchParams(location.search).has('atlas')) {
+        const { showAtlasPreview } = await import('./dev/fixtures.js');
+        await showAtlasPreview(document.querySelector('main'));
+    }
 } catch (error) {
     status.textContent = 'Unable to load the Mahjong table. Please reload to try again.';
     console.error(error);

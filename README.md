@@ -51,6 +51,11 @@ working; press **Ctrl+C** to stop both servers.
 - Backend health check: `http://127.0.0.1:3001/api/health`
 - WebSocket endpoint: `/ws` (room messages are listed in `shared/protocol.js`)
 
+To inspect the tile artwork during development, open
+**http://127.0.0.1:5173/?atlas**. The labeled preview shows all 42 identities,
+their display variants, and four directional backs. Missing special-tile variants
+reuse scaled/rotated existing artwork. The preview is excluded from production.
+
 During development, Vite forwards `/api` and `/ws` requests to the backend.
 Frontend edits reload automatically, and the backend restarts when its source
 files change. No database or account setup is needed.

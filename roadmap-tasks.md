@@ -46,7 +46,7 @@ that gameplay has been implemented.
   draw both on the table. **After:** M01. **Done when:** Both sprites are clear
   and contain no pixels from neighboring sprites.
 
-- [ ] **M03 — Map the rest of the tiles.** Extend `atlas.js` to the 42 canonical
+- [x] **M03 — Map the rest of the tiles.** Extend `atlas.js` to the 42 canonical
   identities in `python_state_machine/tiles.py`, including the directional variants
   needed for hands, melds, discards and Gold. Use a temporary labeled preview in
   `frontend/src/dev/fixtures.js` to inspect them. **After:** M02. **Done when:**
