@@ -11,6 +11,43 @@ export function canWinWithTile(player, candidate, gold = null) {
     return checkHand([...player.concealed, candidate], player.melds.length, gold);
 }
 
+// Returned tiles are the concealed instances needed for the meld, excluding the discard.
+export function getBestClaim(state, seat) {
+    if (!Number.isInteger(seat) || seat < 0 || seat >= state.players.length) {
+        throw new Error('Player seat must be 0, 1, 2 or 3');
+    }
+    const pending = state.pendingDiscard;
+    if (state.phase !== 'claims' || pending === null || pending.fromSeat === seat) return null;
+
+    const player = state.players[seat];
+    if (canWinWithTile(player, pending.tile, state.gold)) return { kind: 'win', tiles: [] };
+
+    // Gold matches only its printed face when forming a claimed meld.
+    const matchingTiles = player.concealed.filter((tile) => tile.tileId === pending.tile.tileId);
+    if (matchingTiles.length >= 3) return { kind: 'kong', tiles: matchingTiles.slice(0, 3) };
+    if (matchingTiles.length >= 2) return { kind: 'peng', tiles: matchingTiles.slice(0, 2) };
+
+    if (seat === (pending.fromSeat + 1) % state.players.length) {
+        const tiles = findChiTiles(player, pending.tile);
+        if (tiles !== null) return { kind: 'chi', tiles };
+    }
+    return null;
+}
+
+export function findChiTiles(player, candidate) {
+    const parsed = parseTile(candidate.tileId);
+    if (parsed === null) return null;
+    const { rank, suit } = parsed;
+    const pairs = [[rank - 2, rank - 1], [rank - 1, rank + 1], [rank + 1, rank + 2]];
+    for (const [firstRank, secondRank] of pairs) {
+        if (firstRank < 1 || secondRank > 9) continue;
+        const first = player.concealed.find((tile) => tile.tileId === `${firstRank}${suit}`);
+        const second = player.concealed.find((tile) => tile.tileId === `${secondRank}${suit}`);
+        if (first && second) return [first, second];
+    }
+    return null;
+}
+
 function checkHand(hand, lockedMelds, gold) {
     // Each meld entry is one locked group, even a four-tile Kong.
     const meldsNeeded = MELDS_PER_HAND - lockedMelds;
