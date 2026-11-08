@@ -12,6 +12,24 @@
                 <h1>CS375 Mahjong</h1>
                 <p>Fuzhou Mahjong · Web development course project</p>
             </header>
+            <section class="lobby" aria-label="Lobby" inert>
+                <div class="lobby-rooms">
+                    <form class="lobby-create">
+                        <label for="player-name">Your name</label>
+                        <input id="player-name" autocomplete="nickname" placeholder="Player" />
+                        <button type="submit">Create room</button>
+                    </form>
+                    <h2>Open rooms</h2>
+                    <ul id="room-list" class="lobby-list"></ul>
+                </div>
+                <div class="lobby-room" hidden>
+                    <h2 id="room-title"></h2>
+                    <ol id="seat-list" class="lobby-list"></ol>
+                    <p id="ready-status" role="status"></p>
+                    <button type="button" id="ready-toggle" aria-pressed="false">Ready</button>
+                    <button type="button" id="leave-room">Leave room</button>
+                </div>
+            </section>
             <canvas id="game" width="384" height="216" aria-label="Mahjong table">
                 This game requires a browser that supports HTML Canvas.
             </canvas>
