@@ -1,9 +1,21 @@
 # Rules engine
 
-Place authoritative game state, dealing, legal-action validation, claims, and
-win evaluation here. The current server has no game or lobby logic.
+`tiles.js` creates the 144 physical tiles with opaque IDs and canonical faces.
+`state.js` creates an undealt round with separate ownership containers for the
+wall, each player's tiles, the pending discard, Gold and skipped Gold specials.
+The undealt wall is unshuffled.
 
-Implement the rules described in [the rules reference](../../../docs/rules.md).
+`engine.js` exports `createRound()`, which shuffles, deals, replaces setup specials
+from the back and selects Gold. For deterministic debugging, `createRound({ wall })`
+accepts an array of canonical face strings in front-to-back order without shuffling
+or modifying it. Short walls are allowed; exhaustion returns phase `over` with
+`endReason: 'wall_exhausted'` and preserves all tiles drawn so far.
+
+Successful setup leaves phase `setup`. Opening win checks and the transition to
+the dealer's first discard are deferred to M09; gameplay actions are not implemented.
+
+Use [the Python simulator](../../../python_state_machine/) as the rules baseline,
+with the web changes in [the MVP checklist](../../../roadmap-tasks.md).
 Do not send the wall or opponents' concealed hands
 in a public room snapshot. Clients should send intent; the server decides
 whether an action is legal and sends each player their own view.
