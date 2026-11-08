@@ -1,6 +1,6 @@
 import { backs, drawSprite, loadAtlas, loadImage, tiles } from './atlas.js';
 
-import { layoutHand, TABLE_WIDTH, TABLE_HEIGHT } from './layout.js';
+import { layoutPlayerHand, layoutDiscards, SPECIAL_CAPACITY, TABLE_WIDTH, TABLE_HEIGHT } from './layout.js';
 
 export async function initializeRenderer(canvas) {
     const context = canvas.getContext('2d');
@@ -29,13 +29,54 @@ export async function initializeRenderer(canvas) {
         if (view) {
             for (const player of view.players) {
                 const isLocal = player.seat === view.viewerSeat;
-                const positions = layoutHand(player.seat, view.viewerSeat, player.concealedCount);
-                positions.forEach(({ x, y, direction }, index) => {
-                    const sprite = isLocal ? tiles[view.ownHand[index].identity].hand : backs[direction];
-                    drawSprite(context, atlas, sprite, x, y);
+                const melds = player.melds ?? [];
+                const positions = layoutPlayerHand(player.seat, view.viewerSeat, player.concealedCount, melds);
+                positions.forEach(({ x, y, scale, direction, tileIndex, meldIndex }) => {
+                    const isMeld = meldIndex !== null;
+                    const tile = isMeld ? melds[meldIndex].tiles[tileIndex] : view.ownHand[tileIndex];
+                    const sprite = isMeld ? tiles[tile.identity].revealed[direction]
+                        : isLocal ? tiles[tile.identity].hand : backs[direction];
+                    context.save();
+                    context.translate(x, y);
+                    context.scale(scale, scale);
+                    drawSprite(context, atlas, sprite, 0, 0);
+                    context.restore();
                 });
+                const discards = player.discards ?? [];
+                layoutDiscards(player.seat, view.viewerSeat, discards.length).forEach(({ x, y }, index) => {
+                    drawScaled(tiles[discards[index].identity].discardLeft, x, y, 0.7);
+                });
+                if (isLocal) {
+                    (player.specials ?? []).slice(0, SPECIAL_CAPACITY).forEach((tile, index) => {
+                        drawScaled(tiles[tile.identity].revealed.south, 12 + index * 9, 199, 0.4);
+                    });
+                }
+
+            }
+            if (view.goldIndicator) {
+                drawScaled(tiles[view.goldIndicator.identity].gold, 139.5, 97, 1);
+                label('GOLD', 139.5, 119);
+            }
+            if (view.pendingDiscard) {
+                drawScaled(tiles[view.pendingDiscard.tile.identity].current, 192, 142, 0.88);
+                label(`Seat ${view.pendingDiscard.seat} discard`, 192, 119);
             }
         }
+    }
+
+    function drawScaled(sprite, x, y, scale) {
+        context.save();
+        context.translate(x, y);
+        context.scale(scale, scale);
+        drawSprite(context, atlas, sprite, 0, 0);
+        context.restore();
+    }
+
+    function label(text, x, y) {
+        context.font = '5px sans-serif';
+        context.textAlign = 'center';
+        context.fillStyle = '#fff4cb';
+        context.fillText(text, x, y);
     }
 
     const resizeObserver = new ResizeObserver(draw);

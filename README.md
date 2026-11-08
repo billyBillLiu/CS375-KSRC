@@ -18,7 +18,7 @@ frontend development server and production build tooling.
 - Lobby code creation and joining system.
 
 Currently, the repository contains the project scaffold, PNG assets, a responsive
-table background, a four-hand sample viewer, a browser WebSocket connection, and server-side rooms with
+table background, a sample mid-round viewer, a browser WebSocket connection, and server-side rooms with
 ready status. The lobby UI and gameplay are not implemented yet.
 
 ## Setup
@@ -58,9 +58,12 @@ To inspect the tile artwork during development, open
 their display variants, and four directional backs. Missing special-tile variants
 reuse scaled/rotated existing artwork. The preview is excluded from production.
 
-To inspect the sample hands, open **http://127.0.0.1:5173/?sample** and switch
+To inspect the sample round, open **http://127.0.0.1:5173/?sample** and switch
 the viewer between seats 0–3. The selected hand appears face-up at the bottom;
 opponents use directional backs. HTML labels identify the absolute seats.
+Gold, face-up meld groups, the current discard and simple discard rows are shown.
+Expand each seat’s details for all public tiles and overflow counts. The stress
+checkbox shows a synthetic five-Kong hand and oversized public piles.
 This preview is development-only. Run its layout tests with
 `node --test frontend/test/layout.test.js`.
 
