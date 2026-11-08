@@ -19,3 +19,9 @@ canvas {
     outline: 1px solid #637463;
     image-rendering: pixelated;
 }
+
+.atlas-preview { overflow-x: auto; margin-top: 24px; }
+.atlas-preview table { border-collapse: collapse; }
+.atlas-preview th, .atlas-preview td { padding: 6px; border: 1px solid #637463; }
+.atlas-preview canvas { width: 72px; height: 84px; aspect-ratio: auto; outline: none; }
+.atlas-preview figure { display: inline-block; margin: 8px; text-align: center; }
