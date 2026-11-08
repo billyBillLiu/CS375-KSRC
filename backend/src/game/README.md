@@ -11,8 +11,14 @@ accepts an array of canonical face strings in front-to-back order without shuffl
 or modifying it. Short walls are allowed; exhaustion returns phase `over` with
 `endReason: 'wall_exhausted'` and preserves all tiles drawn so far.
 
-Successful setup leaves phase `setup`. Opening win checks and the transition to
-the dealer's first discard are deferred to M09; gameplay actions are not implemented.
+After setup, the dealer either wins automatically or starts in phase `discard`.
+`drawFront(state, seat)` and `drawBack(state, seat)` each draw one tile for the
+current player in the matching phase. Specials require a manual back draw;
+playable tiles are sorted into the hand and lead to discard or a self-win.
+Exhaustion ends the round when a required draw has no tile, including when the
+last tile is a special with no replacement. Wrong-seat and wrong-phase draws
+throw without changing state. These functions mutate and return the round state;
+discard, claim resolution, turn advancement and browser controls are still pending.
 
 `rules.js` exports `isWinningHand(player, gold)` and
 `canWinWithTile(player, candidate, gold)`. They use physical tile objects, treat
