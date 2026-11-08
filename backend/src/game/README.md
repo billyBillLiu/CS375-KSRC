@@ -17,8 +17,13 @@ current player in the matching phase. Specials require a manual back draw;
 playable tiles are sorted into the hand and lead to discard or a self-win.
 Exhaustion ends the round when a required draw has no tile, including when the
 last tile is a special with no replacement. Wrong-seat and wrong-phase draws
-throw without changing state. These functions mutate and return the round state;
-discard, claim resolution, turn advancement and browser controls are still pending.
+throw without changing state. These functions mutate and return the round state.
+
+`discard(state, seat, tileInstanceId)` moves one owned concealed tile into
+`pendingDiscard: { tile, fromSeat }` and enters phase `claims`. Any older pending
+tile is settled into its discarder’s pile. Invalid seats, phases or tile IDs throw
+before mutation. Claim resolution, timing, turn advancement and browser controls
+are still pending.
 
 `rules.js` exports `isWinningHand(player, gold)` and
 `canWinWithTile(player, candidate, gold)`. They use physical tile objects, treat
