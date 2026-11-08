@@ -58,7 +58,7 @@ that gameplay has been implemented.
   **Done when:** Switching the sample viewer between seats 0–3 always puts that
   player's hand at the bottom.
 
-- [ ] **M05 — Show the rest of a sample round.** Extend `renderer.js` to draw
+- [x] **M05 — Show the rest of a sample round.** Extend `renderer.js` to draw
   Gold, melds, specials, current discard and simple discard rows. Add HTML details
   for specials/discards that do not fit. **After:** M04. **Done when:** A sample
   mid-round table is readable, melds are distinct from concealed tiles, and large

@@ -25,3 +25,9 @@ canvas {
 .atlas-preview th, .atlas-preview td { padding: 6px; border: 1px solid #637463; }
 .atlas-preview canvas { width: 72px; height: 84px; aspect-ratio: auto; outline: none; }
 .atlas-preview figure { display: inline-block; margin: 8px; text-align: center; }
+
+.sample-preview > label { display: inline-block; margin: 12px 24px 0 0; }
+.round-details details { border-top: 1px solid #637463; padding: 10px 0; }
+.round-details summary { cursor: pointer; }
+.round-details ol { display: flex; flex-wrap: wrap; gap: 8px 32px; padding-left: 32px; }
+.round-details li { padding-right: 8px; }

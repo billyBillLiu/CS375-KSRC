@@ -1,3 +1,4 @@
+import { renderRoundDetails } from '../ui/round-details.js';
 import { backs, drawSprite, loadAtlas, tiles } from '../canvas/atlas.js';
 
 // Temporary, opt-in atlas inspection; keep this out of the normal table flow.
@@ -59,23 +60,30 @@ function previewSprite(atlas, sprite, label) {
     return canvas;
 }
 
-// One fixed round: distinct sorted hands make seat switching easy to inspect.
-const sampleState = {
-    players: [
-        ['1WAN', '1WAN', '2WAN', '3WAN', '4WAN', '5WAN', '6WAN', '7WAN', '8WAN', '9WAN', '1TAO', '2TAO', '3TAO', '4TAO', '5TAO', '6TAO', '7TAO'],
-        ['2WAN', '2WAN', '3WAN', '4WAN', '5WAN', '6WAN', '7WAN', '8WAN', '9WAN', '1TAO', '2TAO', '3TAO', '4TAO', '5TAO', '6TAO', '7TAO'],
-        ['1TAO', '2TAO', '3TAO', '4TAO', '5TAO', '6TAO', '7TAO', '8TAO', '9TAO', '1BIN', '2BIN', '3BIN', '4BIN', '5BIN', '6BIN', '7BIN'],
-        ['1BIN', '2BIN', '3BIN', '4BIN', '5BIN', '6BIN', '7BIN', '8BIN', '8BIN', '9BIN', '9BIN', '9WAN', '8WAN', '7WAN', '8TAO', '9TAO'],
-    ].map((identities, seat) => ({
-        seat,
-        hand: identities.sort((a, b) => {
-            const suits = ['WAN', 'TAO', 'BIN'];
-            return suits.indexOf(a.slice(1)) - suits.indexOf(b.slice(1)) || Number(a[0]) - Number(b[0]);
-        }).map((identity, index) => ({ id: `sample-${seat}-${index}`, identity })),
-    })),
-};
+// Fixed public examples; instance IDs remain distinct even for repeated faces.
+function makeSample(stress = false) {
+    let nextId = 0;
+    const tile = identity => ({ id: `sample-${nextId++}`, identity });
+    const players = Array.from({ length: 4 }, (_, seat) => {
+        const meldFaces = stress && seat === 0
+            ? ['1WAN', '2WAN', '3WAN', '4WAN', '5WAN'].map(face => [face, face, face, face])
+            : [seat === 0 ? ['1WAN', '2WAN', '3WAN'] : ['9BIN', '9BIN', '9BIN']];
+        const count = stress && seat === 0 ? 2 : 13;
+        return {
+            seat,
+            hand: Array.from({ length: count }, (_, index) => tile(`${Math.floor(index / 2) + 1}${['TAO', 'WAN', 'BIN', 'TAO'][seat]}`)),
+            melds: meldFaces.map((faces, index) => ({
+                id: `meld-${seat}-${index}`, type: faces.length === 4 ? 'Kong' : seat === 0 ? 'Chi' : 'Peng', tiles: faces.map(tile),
+            })),
+            specials: Array.from({ length: stress && seat === 0 ? 28 : seat + 2 }, (_, index) => tile(['WIND_EAST', 'DRGN_RED', 'FLO_1', 'SZN_SPR'][index % 4])),
+            discards: Array.from({ length: stress ? 25 : 6 + seat * 2 }, (_, index) => tile(`${index % 9 + 1}BIN`)),
+        };
+    });
+    return { players, goldIndicator: tile('8TAO'), pendingDiscard: { seat: 2, tile: tile('5WAN') } };
+}
 
 export function showSamplePreview(parent, renderer) {
+    let sampleState = makeSample();
     const section = document.createElement('section');
     section.className = 'sample-preview';
     const label = document.createElement('label');
@@ -87,24 +95,41 @@ export function showSamplePreview(parent, renderer) {
     label.append(select);
     const summary = document.createElement('p');
     summary.setAttribute('role', 'status');
-    section.append(label, summary);
+    const stressLabel = document.createElement('label');
+    const stress = document.createElement('input');
+    stress.type = 'checkbox';
+    stressLabel.append(stress, ' Stress: five Kongs and overflowing public piles');
+    const details = document.createElement('div');
+    details.className = 'round-details';
+    section.append(label, stressLabel, summary, details);
     parent.append(section);
 
     function updateView() {
         const viewerSeat = Number(select.value);
-        renderer.setView({
+        const view = {
             viewerSeat,
             ownHand: sampleState.players[viewerSeat].hand,
             players: sampleState.players.map(player => ({
                 seat: player.seat,
                 concealedCount: player.hand.length,
+                melds: player.melds,
+                specials: player.specials,
+                discards: player.discards,
             })),
-        });
+            goldIndicator: sampleState.goldIndicator,
+            pendingDiscard: sampleState.pendingDiscard,
+        };
+        renderer.setView(view);
+        renderRoundDetails(details, view);
         summary.textContent = ['Bottom', 'Right', 'Top', 'Left'].map((side, offset) => {
             const seat = (viewerSeat + offset) % 4;
             return `${side}: seat ${seat} (${sampleState.players[seat].hand.length} tiles)`;
         }).join(' · ');
     }
+    stress.addEventListener('change', () => {
+        sampleState = makeSample(stress.checked);
+        updateView();
+    });
     select.addEventListener('change', updateView);
     updateView();
 }
