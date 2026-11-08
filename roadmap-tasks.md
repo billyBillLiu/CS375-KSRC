@@ -70,7 +70,7 @@ This section can start alongside the table work. Read the corresponding Python
 function while implementing each task; no separate rules-writing step is needed.
 Use short, direct functions and add small helpers only when useful.
 
-- [ ] **M06 — Create tiles and round state.** Fill `backend/src/game/state.js`
+- [x] **M06 — Create tiles and round state.** Fill `backend/src/game/state.js`
   and add a tile helper if needed. Create the 144 physical tiles with unique IDs
   independent of their faces; track wall, hands, melds, specials, discards and Gold.
   **After:** None. **Done when:** A new wall has the Python inventory and no
