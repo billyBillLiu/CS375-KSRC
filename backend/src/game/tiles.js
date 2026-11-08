@@ -49,3 +49,9 @@ export function isSpecial(tileId) {
 export function compareTiles(first, second) {
     return TILE_IDS.indexOf(first.tileId) - TILE_IDS.indexOf(second.tileId);
 }
+
+export function parseTile(tileId) {
+    const match = /^([1-9])(WAN|TAO|BIN)$/.exec(tileId);
+    if (!match) return null;
+    return { rank: Number(match[1]), suit: match[2] };
+}

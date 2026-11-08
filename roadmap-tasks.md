@@ -83,7 +83,7 @@ Use short, direct functions and add small helpers only when useful.
   debugging. **After:** M06. **Done when:** Normal setup leaves hands of
   17/16/16/16 playable tiles and a Gold indicator; a short wall ends safely.
 
-- [ ] **M08 — Port the winning-hand check.** Fill `game/rules.js` using the
+- [x] **M08 — Port the winning-hand check.** Fill `game/rules.js` using the
   Python solver, including Gold substitutions and locked meld counts.
   **After:** M06. **Done when:** Known winning/non-winning hands give the right
   answer, including Gold at the start/middle/end of a sequence and a locked Kong.
