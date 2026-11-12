@@ -22,8 +22,15 @@ throw without changing state. These functions mutate and return the round state.
 `discard(state, seat, tileInstanceId)` moves one owned concealed tile into
 `pendingDiscard: { tile, fromSeat }` and enters phase `claims`. Any older pending
 tile is settled into its discarder’s pile. Invalid seats, phases or tile IDs throw
-before mutation. Claim resolution, timing, turn advancement and browser controls
-are still pending.
+before mutation.
+
+`applyClaim(state, seat)` rechecks and applies the selected seat's best claim.
+A winning discard enters the winner's hand and ends the round. Chi/Peng create
+one locked meld and make the claimant discard; Kong creates one four-tile meld
+and automatically draws one front replacement, with manual back draws for
+specials. Illegal or repeated applications throw without changing state.
+Choosing between competing seats, claim timing, retained Chi and normal turn
+advancement remain for M13; browser game controls are still pending.
 
 `rules.js` exports `isWinningHand(player, gold)` and
 `canWinWithTile(player, candidate, gold)`. They use physical tile objects, treat
@@ -35,8 +42,8 @@ Both checks leave the player's state unchanged; `gold` may be null or omitted.
 contains the concealed instances needed for a meld (empty for Win), or null when
 no claim is available. A seat cannot claim its own discard; only the next seat
 can Chi. `findChiTiles(player, candidate)` finds the first natural matching pair
-in Python order. Neither query changes state. Applying claims and retained Chi
-timing remain for M12–M13.
+in Python order. Neither query changes state. The claim window and retained Chi
+remain for M13.
 
 Use [the Python simulator](../../../python_state_machine/) as the rules baseline,
 with the web changes in [the MVP checklist](../../../roadmap-tasks.md).

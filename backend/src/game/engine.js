@@ -1,6 +1,6 @@
 import { createRoundState } from './state.js';
 import { compareTiles, isSpecial } from './tiles.js';
-import { isWinningHand } from './rules.js';
+import { getBestClaim, isWinningHand } from './rules.js';
 
 // Explicit walls contain face strings in front-to-back order and are never shuffled.
 export function createRound({ wall, random = Math.random } = {}) {
@@ -49,6 +49,43 @@ export function discard(state, seat, tileInstanceId) {
     settlePendingDiscard(state);
     state.pendingDiscard = { tile, fromSeat: seat };
     state.phase = 'claims';
+    return state;
+}
+
+// Apply the selected seat's best claim; choosing between competing seats belongs to M13.
+export function applyClaim(state, seat) {
+    const claim = getBestClaim(state, seat);
+    if (claim === null) throw new Error('No claim available for this player');
+
+    const pending = state.pendingDiscard;
+    const player = state.players[seat];
+    state.pendingDiscard = null;
+    if (claim.kind === 'win') {
+        player.concealed.push(pending.tile);
+        player.concealed.sort(compareTiles);
+        endRound(state, 'discard_claim', seat);
+        return state;
+    }
+
+    for (const tile of claim.tiles) {
+        const index = player.concealed.indexOf(tile);
+        player.concealed.splice(index, 1);
+    }
+    player.melds.push({
+        id: state.nextMeldId,
+        kind: claim.kind,
+        tiles: [pending.tile, ...claim.tiles],
+        fromSeat: pending.fromSeat,
+    });
+    state.nextMeldId++;
+    state.currentSeat = seat;
+    player.concealed.sort(compareTiles);
+
+    if (claim.kind === 'kong') {
+        state.phase = 'drawFront';
+        return drawFront(state, seat);
+    }
+    state.phase = 'discard';
     return state;
 }
 

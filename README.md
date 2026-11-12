@@ -122,7 +122,7 @@ frontend/
   vite.config.js      Development proxy and build configuration
 backend/
   src/
-    game/             Round state, setup, draws, discards, win and claim checks
+    game/             Round state, setup, draws, discards, claims and win checks
     network/          Message validation and routing
     rooms/            In-memory rooms, seats and ready status
     index.js          HTTP and WebSocket server startup
