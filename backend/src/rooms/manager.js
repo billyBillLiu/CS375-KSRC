@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { createRound } from '../game/engine.js';
+import { createGameView } from '../game/view.js';
 import { MAX_NAME_LENGTH, SEAT_COUNT, SERVER_MESSAGES, createMessage } from '../../../shared/protocol.js';
 
 // Thrown for requests the player cannot make; the message is sent back as an error.
@@ -5,7 +8,7 @@ export class RoomError extends Error {}
 
 // In-memory rooms with four seats. The server binds each socket to its seat;
 // clients never say which seat they are acting for.
-export function createRoomManager() {
+export function createRoomManager({ createGame = createRound, now = Date.now } = {}) {
     const sockets = new Set();
     const rooms = new Map();
     const membershipBySocket = new Map(); // socket -> { room, seat }
@@ -16,7 +19,7 @@ export function createRoomManager() {
     }
 
     function roomSummaries() {
-        return [...rooms.values()].map((room) => ({
+        return [...rooms.values()].filter((room) => !room.round).map((room) => ({
             id: room.id,
             playerNames: room.seats.filter(Boolean).map((seat) => seat.name),
             isFull: !room.seats.includes(null),
@@ -33,7 +36,19 @@ export function createRoomManager() {
     function broadcastRoomState(room) {
         const seats = room.seats.map((seat) => seat && { name: seat.name, ready: seat.ready });
         room.seats.forEach((seat, index) => {
-            if (seat) send(seat.socket, SERVER_MESSAGES.ROOM_STATE, { roomId: room.id, you: index, seats });
+            if (seat) send(seat.socket, SERVER_MESSAGES.ROOM_STATE, { roomId: room.id, you: index, seats, roundId: room.roundId ?? null });
+        });
+    }
+
+    function broadcastSnapshots(room) {
+        const serverNow = now();
+        room.seats.forEach((seat, index) => {
+            if (!seat) return;
+            send(seat.socket, SERVER_MESSAGES.SNAPSHOT, {
+                roomId: room.id,
+                roundId: room.roundId,
+                ...createGameView(room.round, index, serverNow),
+            });
         });
     }
 
@@ -45,6 +60,7 @@ export function createRoomManager() {
 
     function takeSeat(socket, room, name) {
         if (membershipBySocket.has(socket)) throw new RoomError('already in a room');
+        if (room.round) throw new RoomError('round has already started');
         const seat = room.seats.indexOf(null);
         if (seat === -1) throw new RoomError('room is full');
         room.seats[seat] = { socket, name: cleanName(name, seat), ready: false };
@@ -76,9 +92,18 @@ export function createRoomManager() {
 
     function setReady(socket, ready) {
         const { room, seat } = membershipOf(socket);
+        if (room.round) throw new RoomError('round has already started');
         room.seats[seat].ready = ready === true;
+        if (room.seats.every((player) => player?.ready && sockets.has(player.socket)
+            && (player.socket.readyState === undefined || player.socket.readyState === 1))) {
+            room.roundId = randomUUID();
+            room.round = createGame({ onChange: () => broadcastSnapshots(room) });
+        }
         broadcastRoomState(room);
-        // TODO(M18): Start the engine once all four connected seats are ready.
+        if (room.round) {
+            broadcastSnapshots(room);
+            broadcastRoomList();
+        }
     }
 
     function leaveRoom(socket) {
@@ -86,7 +111,10 @@ export function createRoomManager() {
         room.seats[seat] = null;
         membershipBySocket.delete(socket);
         if (room.seats.every((s) => s === null)) rooms.delete(room.id);
-        else broadcastRoomState(room);
+        else {
+            broadcastRoomState(room);
+            if (room.round) broadcastSnapshots(room);
+        }
         broadcastRoomList();
     }
 

@@ -52,12 +52,13 @@ export function createLobby(root, send) {
         }
     }
 
-    function showRoomState({ roomId, you, seats }) {
+    function showRoomState({ roomId, you, seats, roundId }) {
         roomListView.hidden = true;
         roomView.hidden = false;
         roomTitle.textContent = `Room ${roomId}`;
 
         isReady = seats[you]?.ready === true;
+        readyButton.disabled = Boolean(roundId);
         readyButton.textContent = isReady ? 'Not ready' : 'Ready';
         readyButton.setAttribute('aria-pressed', String(isReady));
 
@@ -75,10 +76,9 @@ export function createLobby(root, send) {
         }));
 
         const readyCount = seats.filter((seat) => seat?.ready).length;
-        // Starting a round is implemented in M18; this only reports readiness.
-        readyStatus.textContent = readyCount === SEAT_COUNT
-            ? 'All four players are ready.'
-            : `${readyCount}/${SEAT_COUNT} ready. Starting a round is not available yet.`;
+        readyStatus.textContent = roundId
+            ? 'Round started. Table rendering and gameplay controls are coming next.'
+            : `${readyCount}/${SEAT_COUNT} ready. The round starts when all four players are ready.`;
     }
 
     // Blocks lobby input while the socket is not open, so clicks are never silently dropped.

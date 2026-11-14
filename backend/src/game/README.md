@@ -49,7 +49,11 @@ A winning discard enters the winner's hand and ends the round. Chi/Peng create
 one locked meld and make the claimant discard; Kong creates one four-tile meld
 and automatically draws one front replacement, with manual back draws for
 specials. Illegal or repeated applications throw without changing state.
-Room integration and browser game controls are still pending.
+`view.js` builds personalized snapshots with the recipient’s own hand and legal
+actions, opponent counts and public tiles. Only a finished round’s winner is
+revealed. Rooms start the engine when all four connected seats are ready and
+broadcast these views on setup and timed claim resolution. Browser game controls
+and network action handling are still pending.
 
 `rules.js` exports `isWinningHand(player, gold)` and
 `canWinWithTile(player, candidate, gold)`. They use physical tile objects, treat

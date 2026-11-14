@@ -144,7 +144,7 @@ Use short, direct functions and add small helpers only when useful.
   **After:** M16. **Done when:** Four browser windows show the same membership
   and readiness without needing console commands.
 
-- [ ] **M18 — Start a round and send private views.** Start the engine only
+- [x] **M18 — Start a round and send private views.** Start the engine only
   when all four connected seats are ready. Add `backend/src/game/view.js` to send
   each player their own hand, opponent counts, public tiles and legal actions;
   include a fresh round ID. Send full snapshots after changes. **After:** M14,
