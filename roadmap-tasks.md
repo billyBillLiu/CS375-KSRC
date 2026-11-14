@@ -151,7 +151,7 @@ Use short, direct functions and add small helpers only when useful.
   M17. **Done when:** Four browsers start together and their WebSocket messages
   contain no opponents' concealed tiles/IDs or wall order.
 
-- [ ] **M19 — Render real snapshots.** Replace sample state in `main.js` with
+- [x] **M19 — Render real snapshots.** Replace sample state in `main.js` with
   server snapshots, adding `frontend/src/game/view.js` if a mapping helper is
   useful. Use absolute seats for ownership and relative seats for drawing.
   **After:** M05, M18. **Done when:** All four browsers show their own hand at

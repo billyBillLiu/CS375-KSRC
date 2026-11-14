@@ -22,7 +22,13 @@ table background, a sample mid-round viewer, a browser WebSocket connection, and
 ready status. The lobby supports creating, joining and leaving rooms, player names, and ready
 status. When all four connected players are ready, the server starts a round and
 sends private snapshots with each player’s own hand, opponent counts, public tiles
-and legal actions. Live table rendering and gameplay controls are not implemented yet.
+and legal actions. Each browser renders its sorted hand at the bottom, opponent
+backs, Gold and public tiles, with seat labels, the current turn and wall count.
+Gameplay controls are not implemented yet.
+
+To view a live round, open four browser tabs, create a room in one, join it in
+the other three, and click Ready in each. Expand the details below the table to
+inspect public melds, specials and discards.
 
 ## Setup
 
