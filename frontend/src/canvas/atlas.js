@@ -59,6 +59,15 @@ export const backs = {
     west: crop(254, 377, 16, 31),
 };
 
+export const tableSprites = {
+    wall: crop(223, 5, 100, 53),
+    wallFront: crop(227, 62, 11, 19),
+    wallBack: crop(240, 63, 14, 16),
+    sparrow: crop(266, 62, 23, 23),
+    nestBack: crop(305, 60, 34, 6),
+    nestFront: crop(294, 72, 46, 13),
+};
+
 export function loadImage(source) {
     return new Promise((resolve, reject) => {
         const image = new Image();

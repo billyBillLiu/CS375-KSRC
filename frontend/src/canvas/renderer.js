@@ -1,6 +1,6 @@
-import { backs, drawSprite, loadAtlas, loadImage, tiles } from './atlas.js';
+import { backs, drawSprite, loadAtlas, loadImage, tableSprites, tiles } from './atlas.js';
 
-import { layoutPlayerHand, layoutDiscards, SPECIAL_CAPACITY, TABLE_WIDTH, TABLE_HEIGHT } from './layout.js';
+import { CENTER_TABLE, layoutPlayerHand, layoutDiscards, SPECIAL_CAPACITY, TABLE_WIDTH, TABLE_HEIGHT } from './layout.js';
 
 export async function initializeRenderer(canvas) {
     const context = canvas.getContext('2d');
@@ -26,6 +26,7 @@ export async function initializeRenderer(canvas) {
         context.imageSmoothingEnabled = false;
         context.drawImage(table, 0, 0, TABLE_WIDTH, TABLE_HEIGHT);
         context.drawImage(border, 0, 0, TABLE_WIDTH, TABLE_HEIGHT);
+        drawCenter();
         if (view) {
             for (const player of view.players) {
                 const isLocal = player.seat === view.viewerSeat;
@@ -53,14 +54,30 @@ export async function initializeRenderer(canvas) {
                 }
 
             }
-            if (view.goldIndicator) {
-                drawScaled(tiles[view.goldIndicator.identity].gold, 139.5, 97, 1);
-                label('GOLD', 139.5, 119);
-            }
             if (view.pendingDiscard) {
                 drawScaled(tiles[view.pendingDiscard.tile.identity].current, 192, 142, 0.88);
                 label(`Seat ${view.pendingDiscard.seat} discard`, 192, 119);
             }
+        }
+    }
+
+    function drawCenter() {
+        function drawPart(name) {
+            const { x, y } = CENTER_TABLE[name];
+            drawSprite(context, atlas, tableSprites[name], x, y);
+        }
+        drawPart('nestBack');
+        if (view?.goldIndicator) {
+            const { x, y } = CENTER_TABLE.gold;
+            drawSprite(context, atlas, tiles[view.goldIndicator.identity].gold, x, y);
+        }
+        drawPart('nestFront');
+        drawPart('sparrow');
+        drawPart('wall');
+        // The wall represents the remaining pile without exposing tile identities.
+        if (view?.wallCount !== 0) {
+            drawPart('wallFront');
+            drawPart('wallBack');
         }
     }
 
