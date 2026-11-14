@@ -1,6 +1,17 @@
 export const TABLE_WIDTH = 384;
 export const TABLE_HEIGHT = 216;
 
+// Shared logical anchors for the center artwork and future draw hit targets.
+export const CENTER_TABLE = {
+    wall: { x: 209.85, y: 102.18 },
+    wallFront: { x: 169.55, y: 119.88 },
+    wallBack: { x: 256.8, y: 106 },
+    gold: { x: 139.5, y: 97 },
+    nestBack: { x: 140.5, y: 102 },
+    nestFront: { x: 139.5, y: 109.5 },
+    sparrow: { x: 118, y: 97 },
+};
+
 const DIRECTIONS = ['south', 'east', 'north', 'west'];
 
 export function getVisualSeat(absoluteSeat, viewerSeat) {

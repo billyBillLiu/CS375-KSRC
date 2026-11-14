@@ -63,6 +63,8 @@ To inspect the sample round, open **http://127.0.0.1:5173/?sample** and switch
 the viewer between seats 0–3. The selected hand appears face-up at the bottom;
 opponents use directional backs. HTML labels identify the absolute seats.
 Gold, face-up meld groups, the current discard and simple discard rows are shown.
+The center uses the wall and front/back draw-tile artwork, with Gold in its
+layered nest. These draw targets are visual only until gameplay input is connected.
 Expand each seat’s details for all public tiles and overflow counts. The stress
 checkbox shows a synthetic five-Kong hand and oversized public piles.
 This preview is development-only. Run its layout tests with
