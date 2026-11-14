@@ -20,7 +20,9 @@ frontend development server and production build tooling.
 Currently, the repository contains the project scaffold, PNG assets, a responsive
 table background, a sample mid-round viewer, a browser WebSocket connection, and server-side rooms with
 ready status. The lobby supports creating, joining and leaving rooms, player names, and ready
-status. Starting a round and live gameplay are not implemented yet.
+status. When all four connected players are ready, the server starts a round and
+sends private snapshots with each player’s own hand, opponent counts, public tiles
+and legal actions. Live table rendering and gameplay controls are not implemented yet.
 
 ## Setup
 

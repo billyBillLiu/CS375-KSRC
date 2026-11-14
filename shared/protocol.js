@@ -14,8 +14,10 @@ export const CLIENT_MESSAGES = Object.freeze({
 export const SERVER_MESSAGES = Object.freeze({
     // { rooms: [{ id, playerNames: string[], isFull }] }, sent to everyone not in a room
     ROOM_LIST: 'roomList',
-    // { roomId, you: seat, seats: [{ name, ready } | null] }, sent to everyone in the room
+    // { roomId, you: seat, roundId: string | null, seats: [{ name, ready } | null] }, sent to everyone in the room
     ROOM_STATE: 'roomState',
+    // Full personalized game view; never includes wall order or opponents' hands.
+    SNAPSHOT: 'snapshot',
     ERROR: 'error',             // { reason }
 });
 

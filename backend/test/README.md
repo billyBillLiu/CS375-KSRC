@@ -12,5 +12,6 @@ check unique physical tile ownership and conservation of all 144 tiles after eac
 transition. Claim deadlines use an injected clock without real sleeps.
 
 Room and message tests cover waiting-room membership, readiness, disconnects and
-invalid requests. Private game snapshots and active-round disconnect handling
-remain for their later implementation tasks.
+invalid requests, four-player round starts and private snapshots. View tests cover
+concealed-hand privacy, public tiles, legal actions and winner-only reveals.
+Active-round disconnect handling remains for M24.
