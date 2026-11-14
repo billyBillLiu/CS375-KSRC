@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRound, discard, drawBack, drawFront } from '../src/game/engine.js';
+import { applyClaim, createRound, discard, drawBack, drawFront } from '../src/game/engine.js';
 import { createRoundState } from '../src/game/state.js';
 import { buildWall, isSpecial } from '../src/game/tiles.js';
 
@@ -481,4 +481,247 @@ test('discard settles an older pending tile once before replacing it with the ne
     assert.deepEqual(state.players[0].discards, []);
     assertRejectedDiscard(state, 0, selected.id);
     assertConservation(state, wall);
+});
+
+const chiHand = '1WAN 2WAN 2WAN 4WAN 5WAN 7WAN 8WAN 1TAO 3TAO 5TAO 7TAO 1BIN 3BIN 5BIN 7BIN 9BIN'.split(' ');
+const kongHand = '3WAN 3WAN 3WAN 1WAN 2WAN 4WAN 5WAN 7WAN 8WAN 1TAO 3TAO 5TAO 7TAO 1BIN 3BIN 5BIN'.split(' ');
+const kongWinningHand = '3WAN 3WAN 3WAN 1TAO 2TAO 3TAO 4TAO 5TAO 6TAO 6TAO 7TAO 8TAO 1BIN 2BIN 3BIN 5BIN'.split(' ');
+
+function createClaimState(hand, candidate, wall = [], seat = 1, fromSeat = 0) {
+    const state = createDrawState([candidate, ...wall], seat, hand);
+    const tile = state.wall.shift();
+    state.players[fromSeat].concealed.push(tile);
+    state.currentSeat = fromSeat;
+    state.phase = 'discard';
+    discard(state, fromSeat, tile.id);
+    return state;
+}
+
+function assertRejectedClaim(state, seat) {
+    const before = structuredClone(state);
+    assert.throws(() => applyClaim(state, seat), /seat|No claim/);
+    assert.deepEqual(state, before);
+}
+
+test('Chi, Peng and Kong move physical tiles into one meld while conserving a full wall', () => {
+    for (const { kind, swaps, expectedTiles } of [
+        { kind: 'chi', swaps: [[4, 8]], expectedTiles: ['1WAN', '2WAN', '3WAN'] },
+        { kind: 'peng', swaps: [[1, 4], [2, 5]], expectedTiles: Array(3).fill('1WAN') },
+        { kind: 'kong', swaps: [[1, 4], [2, 5], [3, 6]], expectedTiles: Array(4).fill('1WAN') },
+    ]) {
+        const wall = faces(buildWall());
+        for (const [first, second] of swaps) [wall[first], wall[second]] = [wall[second], wall[first]];
+        const state = createRound({ wall });
+        discard(state, 0, state.players[0].concealed[0].id);
+        const pendingTile = state.pendingDiscard.tile;
+        const originalHand = [...state.players[1].concealed];
+        const before = structuredClone(state);
+
+        assert.equal(applyClaim(state, 1), state);
+        const player = state.players[1];
+        const meld = player.melds[0];
+        assert.equal(player.melds.length, 1);
+        assert.equal(meld.id, 0);
+        assert.equal(meld.kind, kind);
+        assert.equal(meld.fromSeat, 0);
+        assert.deepEqual(faces(meld.tiles), expectedTiles);
+        assert.equal(meld.tiles[0], pendingTile);
+        assert.ok(meld.tiles.slice(1).every((tile) => originalHand.includes(tile)));
+        assert.ok(meld.tiles.every((tile) => !player.concealed.includes(tile)));
+        assert.equal(player.concealed.length, 14);
+        assert.equal(state.nextMeldId, 1);
+        assert.equal(state.pendingDiscard, null);
+        assert.equal(state.currentSeat, 1);
+        assert.equal(state.phase, 'discard');
+        assert.equal(state.winner, null);
+        assert.equal(state.endReason, null);
+        assert.deepEqual(state.wall, kind === 'kong' ? before.wall.slice(1) : before.wall);
+        assert.deepEqual(state.gold, before.gold);
+        assert.deepEqual(state.skippedGoldSpecials, before.skippedGoldSpecials);
+        for (const seat of [0, 2, 3]) assert.deepEqual(state.players[seat], before.players[seat]);
+        assertConservation(state, wall);
+        assertRejectedClaim(state, 1);
+        assertRejectedDraw(state, drawFront, 1);
+        assertRejectedDraw(state, drawBack, 1);
+        for (const tile of meld.tiles) assertRejectedDiscard(state, 1, tile.id);
+
+        discard(state, 1, player.concealed[0].id);
+        assert.equal(player.concealed.length, 13);
+        assert.equal(player.melds[0], meld);
+        assertConservation(state, wall);
+    }
+});
+
+test('Chi uses the first valid combination and leaves an unused matching copy concealed', () => {
+    const state = createClaimState(chiHand, '3WAN');
+    const copies = state.players[1].concealed.filter((tile) => tile.tileId === '2WAN');
+    applyClaim(state, 1);
+    assert.deepEqual(faces(state.players[1].melds[0].tiles), ['3WAN', '1WAN', '2WAN']);
+    assert.equal(state.players[1].melds[0].tiles[2], copies[0]);
+    assert.ok(state.players[1].concealed.includes(copies[1]));
+    assert.equal(state.phase, 'discard');
+    assertConservation(state, [...chiHand, '3WAN', '9TAO']);
+});
+
+test('a new meld gets a fresh ID without changing an existing meld', () => {
+    const hand = chiHand.slice(0, 13);
+    const state = createClaimState(hand, '3WAN');
+    const existing = { id: 4, kind: 'chi', tiles: buildWall(['6TAO', '7TAO', '8TAO']), fromSeat: 3 };
+    const before = structuredClone(existing);
+    state.players[1].melds.push(existing);
+    state.nextMeldId = 5;
+    applyClaim(state, 1);
+    assert.equal(state.players[1].melds[0], existing);
+    assert.deepEqual(existing, before);
+    assert.equal(state.players[1].melds[1].id, 5);
+    assert.equal(state.nextMeldId, 6);
+    assert.equal(state.players[1].concealed.length, 11);
+    assertConservation(state, [...hand, '3WAN', '9TAO', '6TAO', '7TAO', '8TAO']);
+});
+
+test('discard wins move the pending tile into the winner hand without drawing or changing the turn seat', () => {
+    for (let seat = 0; seat < 4; seat++) {
+        for (const candidate of ['9BIN', '9TAO']) {
+            const fromSeat = (seat + 3) % 4;
+            const wall = ['1BIN', '2BIN'];
+            const state = createClaimState(waitingHand, candidate, wall, seat, fromSeat);
+            const pendingTile = state.pendingDiscard.tile;
+            const wallBefore = [...state.wall];
+            applyClaim(state, seat);
+            assert.equal(state.phase, 'over');
+            assert.equal(state.winner, seat);
+            assert.equal(state.endReason, 'discard_claim');
+            assert.equal(state.currentSeat, fromSeat);
+            assert.equal(state.pendingDiscard, null);
+            assert.equal(state.players[seat].concealed.length, 17);
+            assert.ok(state.players[seat].concealed.includes(pendingTile));
+            assert.deepEqual(state.players[seat].melds, []);
+            assert.deepEqual(state.players[fromSeat].discards, []);
+            assert.deepEqual(state.wall, wallBefore);
+            assert.equal(state.nextMeldId, 0);
+            assertConservation(state, [...waitingHand, candidate, ...wall, '9TAO']);
+            assertRejectedClaim(state, seat);
+        }
+    }
+});
+
+test('Win is applied ahead of the claimant Kong and does not consume a replacement', () => {
+    const hand = '1WAN 1WAN 1WAN 2WAN 3WAN 4WAN 5WAN 6WAN 2TAO 2TAO 2TAO 4TAO 5TAO 6TAO 5BIN 5BIN'.split(' ');
+    const state = createClaimState(hand, '1WAN', ['FLO_1']);
+    applyClaim(state, 1);
+    assert.equal(state.endReason, 'discard_claim');
+    assert.equal(state.winner, 1);
+    assert.deepEqual(state.players[1].melds, []);
+    assert.deepEqual(faces(state.wall), ['FLO_1']);
+    assertConservation(state, [...hand, '1WAN', 'FLO_1', '9TAO']);
+});
+
+test('Kong takes one front replacement and repeated specials require manual back draws', () => {
+    const wall = ['WIND_EAST', '1BIN', '6BIN', 'FLO_1', 'DRGN_RED'];
+    const state = createClaimState(kongHand, '3WAN', wall);
+    const inventory = [...kongHand, '3WAN', ...wall, '9TAO'];
+    applyClaim(state, 1);
+    const meld = state.players[1].melds[0];
+    assert.equal(meld.kind, 'kong');
+    assert.equal(meld.tiles.length, 4);
+    assert.equal(state.phase, 'drawBack');
+    assert.equal(state.currentSeat, 1);
+    assert.equal(state.players[1].concealed.length, 13);
+    assert.deepEqual(faces(state.players[1].specials), ['WIND_EAST']);
+    assert.deepEqual(faces(state.wall), wall.slice(1));
+    assertRejectedClaim(state, 1);
+    assertRejectedDraw(state, drawFront, 1);
+    assertRejectedDiscard(state, 1, state.players[1].concealed[0].id);
+    assertConservation(state, inventory);
+
+    for (const expected of [['WIND_EAST', 'DRGN_RED'], ['WIND_EAST', 'DRGN_RED', 'FLO_1']]) {
+        drawBack(state, 1);
+        assert.equal(state.phase, 'drawBack');
+        assert.equal(state.players[1].concealed.length, 13);
+        assert.deepEqual(faces(state.players[1].specials), expected);
+        assertConservation(state, inventory);
+    }
+    drawBack(state, 1);
+    assert.equal(state.phase, 'discard');
+    assert.equal(state.players[1].concealed.length, 14);
+    assert.equal(state.players[1].melds[0], meld);
+    assert.equal(state.players[1].melds.length, 1);
+    assert.deepEqual(faces(state.wall), ['1BIN']);
+    assertConservation(state, inventory);
+    assertRejectedDraw(state, drawFront, 1);
+    assertRejectedDraw(state, drawBack, 1);
+});
+
+test('Kong replacement wins work from the front or back, including Gold', () => {
+    for (const wall of [
+        ['5BIN', '1WAN'], ['9TAO', '1WAN'],
+        ['WIND_EAST', '1WAN', '5BIN', 'FLO_1'], ['WIND_EAST', '1WAN', '9TAO', 'FLO_1'],
+    ]) {
+        const state = createClaimState(kongWinningHand, '3WAN', wall);
+        applyClaim(state, 1);
+        while (state.phase === 'drawBack') drawBack(state, 1);
+        assert.equal(state.phase, 'over');
+        assert.equal(state.winner, 1);
+        assert.equal(state.endReason, 'self_draw');
+        assert.equal(state.players[1].melds.length, 1);
+        assert.equal(state.players[1].melds[0].kind, 'kong');
+        assert.equal(state.players[1].concealed.length, 14);
+        assert.deepEqual(faces(state.wall), ['1WAN']);
+        assertConservation(state, [...kongWinningHand, '3WAN', ...wall, '9TAO']);
+        assertRejectedDraw(state, drawFront, 1);
+        assertRejectedDraw(state, drawBack, 1);
+    }
+});
+
+test('exhausted Kong replacements end the round but keep the completed meld and every tile', () => {
+    for (const wall of [[], ['WIND_EAST'], ['WIND_EAST', 'FLO_1']]) {
+        const state = createClaimState(kongHand, '3WAN', wall);
+        applyClaim(state, 1);
+        while (state.phase === 'drawBack') drawBack(state, 1);
+        assert.equal(state.phase, 'over');
+        assert.equal(state.endReason, 'wall_exhausted');
+        assert.equal(state.winner, null);
+        assert.equal(state.currentSeat, 1);
+        assert.equal(state.pendingDiscard, null);
+        assert.equal(state.players[1].melds.length, 1);
+        assert.equal(state.players[1].melds[0].tiles.length, 4);
+        assert.equal(state.players[1].concealed.length, 13);
+        assert.deepEqual(faces(state.players[1].specials), wall);
+        assert.equal(state.nextMeldId, 1);
+        assertConservation(state, [...kongHand, '3WAN', ...wall, '9TAO']);
+        assertRejectedClaim(state, 1);
+    }
+});
+
+test('Gold used naturally in a Chi moves into the meld without moving the indicator', () => {
+    const hand = [...chiHand];
+    hand[2] = '9TAO';
+    const state = createClaimState(hand, '8TAO');
+    const indicator = state.gold;
+    const concealedGold = state.players[1].concealed.find((tile) => tile.tileId === '9TAO');
+    applyClaim(state, 1);
+    assert.deepEqual(faces(state.players[1].melds[0].tiles), ['8TAO', '7TAO', '9TAO']);
+    assert.ok(state.players[1].melds[0].tiles.includes(concealedGold));
+    assert.equal(state.gold, indicator);
+    assertConservation(state, [...hand, '8TAO', '9TAO']);
+});
+
+test('claim application rejects invalid seats, self-claims, ineligible players and wrong phases without mutation', () => {
+    const state = createClaimState(chiHand, '3WAN');
+    for (const seat of [-1, 4, 1.5, '1', NaN, null, undefined, 0, 2, 3]) {
+        assertRejectedClaim(state, seat);
+    }
+    for (const phase of ['setup', 'drawFront', 'drawBack', 'discard', 'over']) {
+        state.phase = phase;
+        assertRejectedClaim(state, 1);
+    }
+    state.phase = 'claims';
+    state.pendingDiscard = null;
+    assertRejectedClaim(state, 1);
+});
+
+test('claim eligibility is checked again against the current concealed tiles', () => {
+    const state = createClaimState(chiHand, '3WAN');
+    state.players[1].discards.push(...state.players[1].concealed.splice(0, 5));
+    assertRejectedClaim(state, 1);
 });

@@ -105,7 +105,7 @@ Use short, direct functions and add small helpers only when useful.
   **After:** M08, M10. **Done when:** Each seat gets its best available claim;
   nobody can claim their own discard.
 
-- [ ] **M12 — Apply a winning claim or meld.** In `engine.js`, move the pending
+- [x] **M12 — Apply a winning claim or meld.** In `engine.js`, move the pending
   tile and matching concealed tiles into the claimant's meld, or into the winning
   hand. Chi/Peng lead to discard; Kong automatically takes one front replacement
   and uses manual back draws for specials. **After:** M11. **Done when:** Tiles
