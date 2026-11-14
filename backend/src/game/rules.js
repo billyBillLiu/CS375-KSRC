@@ -1,6 +1,6 @@
 import { compareTiles, parseTile } from './tiles.js';
 
-const MELDS_PER_HAND = 5;
+export const MELDS_PER_HAND = 5;
 
 // Gold is the physical indicator tile (or null), as stored in round state.
 export function isWinningHand(player, gold = null) {
@@ -17,9 +17,18 @@ export function getBestClaim(state, seat) {
         throw new Error('Player seat must be 0, 1, 2 or 3');
     }
     const pending = state.pendingDiscard;
-    if (state.phase !== 'claims' || pending === null || pending.fromSeat === seat) return null;
+    if (pending === null || pending.fromSeat === seat) return null;
 
     const player = state.players[seat];
+    if (state.phase !== 'claims') {
+        const retained = state.retainedChi;
+        if (!retained || retained.seat !== seat || state.currentSeat !== seat
+            || retained.tileInstanceId !== pending.tile.id
+            || seat !== (pending.fromSeat + 1) % state.players.length
+            || !['drawFront', 'discard'].includes(state.phase)) return null;
+        const tiles = findChiTiles(player, pending.tile);
+        return tiles === null ? null : { kind: 'chi', tiles };
+    }
     if (canWinWithTile(player, pending.tile, state.gold)) return { kind: 'win', tiles: [] };
 
     // Gold matches only its printed face when forming a claimed meld.

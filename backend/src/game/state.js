@@ -19,6 +19,8 @@ export function createRoundState({ wall } = {}) {
         currentSeat: 0,
         phase: 'setup',
         pendingDiscard: null,
+        claimWindow: null,
+        retainedChi: null,
         gold: null,
         skippedGoldSpecials: [],
         nextMeldId: 0,

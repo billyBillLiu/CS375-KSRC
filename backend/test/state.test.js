@@ -57,6 +57,8 @@ test('a new round owns all 144 tiles in its wall before setup', () => {
     assert.equal(state.currentSeat, 0);
     assert.equal(state.phase, 'setup');
     assert.equal(state.pendingDiscard, null);
+    assert.equal(state.claimWindow, null);
+    assert.equal(state.retainedChi, null);
     assert.equal(state.gold, null);
     assert.deepEqual(state.skippedGoldSpecials, []);
     assert.equal(state.nextMeldId, 0);
