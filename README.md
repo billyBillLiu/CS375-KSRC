@@ -126,7 +126,7 @@ backend/
     network/          Message validation and routing
     rooms/            In-memory rooms, seats and ready status
     index.js          HTTP and WebSocket server startup
-  test/               Future backend tests
+  test/               Node tests for rules, rounds, rooms and messages
 shared/
   protocol.js         WebSocket message names and helpers
 scripts/

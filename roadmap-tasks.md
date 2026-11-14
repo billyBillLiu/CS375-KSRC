@@ -119,7 +119,7 @@ Use short, direct functions and add small helpers only when useful.
   **Done when:** Submission order does not decide the winner, timed Pass still
   allows retained Chi, and late claims cannot affect a different discard.
 
-- [ ] **M14 — Check the engine's tricky cases.** Add a small Node test suite in
+- [x] **M14 — Check the engine's tricky cases.** Add a small Node test suite in
   `backend/test/` for Gold wins, claim priority/ties, retained Chi, Kong replacement,
   special chains and exhaustion. Assert unique tile ownership and 144-tile
   conservation through full-wall scenarios. **After:** M13. **Done when:**

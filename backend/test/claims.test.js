@@ -4,8 +4,8 @@ import {
     applyClaim, claimRetainedChi, CLAIM_WINDOW_MS, createRound, discard,
     drawBack, drawFront, resolveClaims, submitClaim,
 } from '../src/game/engine.js';
-import { getBestClaim } from '../src/game/rules.js';
-import { buildWall } from '../src/game/tiles.js';
+import { getBestClaim, isWinningHand } from '../src/game/rules.js';
+import { buildWall, isSpecial } from '../src/game/tiles.js';
 
 function fakeClock() {
     let time = 1000;
@@ -409,8 +409,13 @@ test('independent rounds have different window IDs and independent deadlines', (
 
 test('full-wall rounds can advance through draws, discards and claim windows to completion', () => {
     const inventory = buildWall().map((tile) => tile.tileId);
-    const walls = [inventory, [...inventory].reverse(), inventory.map((_, index) => inventory[(index * 37) % 144])];
-    for (const wall of walls) {
+    const scenarios = [
+        { wall: inventory, endReason: 'wall_exhausted', winner: null, wallCount: 0 },
+        { wall: [...inventory].reverse(), endReason: 'self_draw', winner: 3, wallCount: 1 },
+        { wall: inventory.map((_, index) => inventory[(index * 37) % 144]),
+            endReason: 'self_draw', winner: 2, wallCount: 14 },
+    ];
+    for (const { wall, endReason, winner, wallCount } of scenarios) {
         const clock = fakeClock();
         const state = createRound({ wall, clock });
         const ids = ownedIds(state);
@@ -440,9 +445,131 @@ test('full-wall rounds can advance through draws, discards and claim windows to 
             assertOwnership(state, ids);
         }
         assert.equal(state.phase, 'over');
-        assert.ok(['self_draw', 'discard_claim', 'wall_exhausted'].includes(state.endReason));
+        assert.equal(state.endReason, endReason);
+        assert.equal(state.winner, winner);
+        assert.equal(state.wall.length, wallCount);
         assert.equal(state.claimWindow, null);
         assert.equal(state.retainedChi, null);
         assert.equal(clock.pendingCount, 0);
     }
+});
+
+// Reserve exact setup hands and draw endpoints from one real inventory.
+function fullWallWithHands(handFaces, front = [], back = []) {
+    const inventory = buildWall().map((tile) => tile.tileId);
+    const remaining = [...inventory];
+    const hands = handFaces.map((hand) => hand === null ? null : hand.split(' '));
+    for (const face of [...hands.flat().filter(Boolean), ...front, ...back, '9TAO']) {
+        const index = remaining.indexOf(face);
+        assert.notEqual(index, -1, `Fixture exceeds inventory for ${face}`);
+        remaining.splice(index, 1);
+    }
+    for (let seat = 0; seat < 4; seat++) {
+        const count = seat === 0 ? 17 : 16;
+        if (hands[seat] === null) {
+            hands[seat] = [];
+            for (let tile = 0; tile < count; tile++) {
+                const index = remaining.findIndex((face) => !isSpecial(face));
+                assert.notEqual(index, -1);
+                hands[seat].push(remaining.splice(index, 1)[0]);
+            }
+        }
+        assert.equal(hands[seat].length, count);
+    }
+    const wall = [];
+    for (let packet = 0; packet < 4; packet++) {
+        for (const hand of hands) wall.push(...hand.slice(packet * 4, packet * 4 + 4));
+    }
+    wall.push(hands[0][16], ...front, ...remaining, ...back, '9TAO');
+    assert.equal(wall.length, 144);
+    assert.deepEqual([...wall].sort(), inventory.sort());
+    return wall;
+}
+
+test('a full-wall Gold win beats an earlier Peng or a later-seat Win without losing any tile', () => {
+    const goldHand = '1WAN 2WAN 4WAN 5WAN 6WAN 1TAO 2TAO 3TAO 4TAO 5TAO 6TAO 7BIN 8BIN 9BIN 5BIN 9TAO';
+    const otherWin = '3WAN 3WAN 7WAN 8WAN 9WAN 7TAO 8TAO 9TAO 1BIN 2BIN 3BIN 4BIN 5BIN 6BIN 6WAN 6WAN';
+    for (const [otherHand, otherClaim] of [[PENG, 'peng'], [otherWin, 'win']]) {
+        const clock = fakeClock();
+        const wall = fullWallWithHands([`${NEUTRAL} 3WAN`, goldHand, otherHand, null]);
+        const state = createRound({ wall, clock });
+        const ids = ownedIds(state);
+        assert.equal(ids.length, 144);
+        assert.equal(state.phase, 'discard');
+        const tile = state.players[0].concealed.find((tile) => tile.tileId === '3WAN');
+        discard(state, 0, tile.id);
+        assertOwnership(state, ids);
+        const id = state.claimWindow.id;
+        assert.equal(getBestClaim(state, 1).kind, 'win');
+        assert.equal(getBestClaim(state, 2).kind, otherClaim);
+        assertRejected(state, () => discard(state, 0, tile.id));
+        submitClaim(state, 2, id, 'claim');
+        assertOwnership(state, ids);
+        submitClaim(state, 1, id, 'claim');
+        assertOwnership(state, ids);
+        clock.advance(CLAIM_WINDOW_MS);
+        assert.equal(state.phase, 'over');
+        assert.equal(state.winner, 1);
+        assert.equal(state.endReason, 'discard_claim');
+        assert.equal(state.wall.length, 78);
+        assert.ok(state.players[1].concealed.includes(tile));
+        assert.equal(isWinningHand(state.players[1], state.gold), true);
+        assert.equal(isWinningHand(state.players[1]), false);
+        assert.equal(state.players[2].melds.length, 0);
+        assert.equal(clock.pendingCount, 0);
+        assertOwnership(state, ids);
+        assertRejected(state, () => submitClaim(state, 2, id, 'claim'));
+    }
+});
+
+test('a full-wall timed Kong and special chain end in a Gold replacement win with 144 tiles', () => {
+    const kongHand = '3WAN 3WAN 3WAN 1TAO 2TAO 3TAO 4TAO 5TAO 6TAO 6TAO 7TAO 8TAO 1BIN 2BIN 3BIN 5BIN';
+    const wall = fullWallWithHands([`${NEUTRAL} 3WAN`, kongHand, null, null],
+        ['WIND_EAST'], ['9TAO', 'FLO_1', 'DRGN_RED']);
+    const clock = fakeClock();
+    const state = createRound({ wall, clock });
+    const ids = ownedIds(state);
+    assert.equal(ids.length, 144);
+    const indicator = state.gold;
+    const tile = state.players[0].concealed.find((tile) => tile.tileId === '3WAN');
+    discard(state, 0, tile.id);
+    assertOwnership(state, ids);
+    const id = state.claimWindow.id;
+    assert.equal(getBestClaim(state, 1).kind, 'kong');
+    submitClaim(state, 1, id, 'claim');
+    assertOwnership(state, ids);
+    clock.advance(CLAIM_WINDOW_MS);
+    assert.equal(state.phase, 'drawBack');
+    assert.equal(state.players[1].melds[0].tiles.length, 4);
+    assert.equal(state.players[1].melds[0].tiles[0], tile);
+    assert.equal(state.players[1].concealed.length, 13);
+    assert.deepEqual(state.players[1].specials.map((tile) => tile.tileId), ['WIND_EAST']);
+    assert.equal(state.wall.length, 77);
+    assertOwnership(state, ids);
+    assertRejected(state, () => drawFront(state, 1), /Cannot/);
+
+    for (const count of [2, 3]) {
+        drawBack(state, 1);
+        assert.equal(state.phase, 'drawBack');
+        assert.equal(state.players[1].specials.length, count);
+        assertOwnership(state, ids);
+    }
+    const replacement = state.wall.at(-1);
+    assert.equal(replacement.tileId, '9TAO');
+    drawBack(state, 1);
+    assert.equal(state.phase, 'over');
+    assert.equal(state.endReason, 'self_draw');
+    assert.equal(state.winner, 1);
+    assert.equal(state.wall.length, 74);
+    assert.equal(state.players[1].concealed.length, 14);
+    assert.ok(state.players[1].concealed.includes(replacement));
+    assert.equal(state.gold, indicator);
+    assert.equal(isWinningHand(state.players[1], state.gold), true);
+    assert.equal(isWinningHand(state.players[1]), false);
+    assert.equal(state.claimWindow, null);
+    assert.equal(clock.pendingCount, 0);
+    assertOwnership(state, ids);
+    const finished = structuredClone(state);
+    clock.advance(10000);
+    assert.deepEqual(state, finished);
 });
