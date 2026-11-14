@@ -77,7 +77,7 @@ export function createLobby(root, send) {
 
         const readyCount = seats.filter((seat) => seat?.ready).length;
         readyStatus.textContent = roundId
-            ? 'Round started. Table rendering and gameplay controls are coming next.'
+            ? 'Round started. Gameplay controls are coming next.'
             : `${readyCount}/${SEAT_COUNT} ready. The round starts when all four players are ready.`;
     }
 
