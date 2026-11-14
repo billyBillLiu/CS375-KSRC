@@ -111,7 +111,7 @@ Use short, direct functions and add small helpers only when useful.
   and uses manual back draws for specials. **After:** M11. **Done when:** Tiles
   move once, a Kong counts as one meld, and Kong does not cause a second normal draw.
 
-- [ ] **M13 — Resolve the claim window.** Collect human Claim/Pass choices for
+- [x] **M13 — Resolve the claim window.** Collect human Claim/Pass choices for
   3.5 seconds, treating silence as Pass. Resolve by priority, then turn order after
   the discarder. With no accepted claim, keep retained Chi for the next eligible
   seat until it draws/discards; otherwise settle the tile and advance the turn.

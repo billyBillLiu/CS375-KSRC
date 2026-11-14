@@ -1,10 +1,18 @@
+import { randomUUID } from 'node:crypto';
 import { createRoundState } from './state.js';
 import { compareTiles, isSpecial } from './tiles.js';
-import { getBestClaim, isWinningHand } from './rules.js';
+import { findChiTiles, getBestClaim, isWinningHand, MELDS_PER_HAND } from './rules.js';
+
+export const CLAIM_WINDOW_MS = 3500;
+const CLAIM_PRIORITY = ['win', 'kong', 'peng', 'chi'];
+const SYSTEM_CLOCK = { now: () => Date.now(), setTimeout, clearTimeout };
+// Timer handles and callbacks stay out of serializable game state.
+const roundRuntime = new WeakMap();
 
 // Explicit walls contain face strings in front-to-back order and are never shuffled.
-export function createRound({ wall, random = Math.random } = {}) {
+export function createRound({ wall, random = Math.random, clock = SYSTEM_CLOCK, onChange = () => {} } = {}) {
     const state = createRoundState({ wall });
+    roundRuntime.set(state, { clock, onChange, timer: null });
     if (wall === undefined) shuffleWall(state.wall, random);
 
     for (let packet = 0; packet < 4; packet++) {
@@ -24,7 +32,7 @@ export function createRound({ wall, random = Math.random } = {}) {
     if (!revealGold(state)) return state;
 
     for (const player of state.players) player.concealed.sort(compareTiles);
-    checkForWinOrDiscard(state);
+    beginTurn(state);
     return state;
 }
 
@@ -49,16 +57,77 @@ export function discard(state, seat, tileInstanceId) {
     settlePendingDiscard(state);
     state.pendingDiscard = { tile, fromSeat: seat };
     state.phase = 'claims';
+    openClaimWindow(state);
     return state;
 }
 
-// Apply the selected seat's best claim; choosing between competing seats belongs to M13.
+export function submitClaim(state, seat, windowId, choice) {
+    validateSeat(state, seat);
+    const window = requireClaimWindow(state, windowId);
+    if (getRuntime(state).clock.now() >= window.deadline) throw new Error('Claim window has closed');
+    if (seat === state.pendingDiscard.fromSeat) throw new Error('Discarder cannot respond to their own discard');
+    if (choice !== 'claim' && choice !== 'pass') throw new Error('Choice must be claim or pass');
+    if (window.choices[seat] !== null) throw new Error('This seat has already responded');
+    if (choice === 'claim' && getBestClaim(state, seat) === null) throw new Error('No claim available for this player');
+    window.choices[seat] = choice;
+    return state;
+}
+
+export function resolveClaims(state, windowId) {
+    const window = requireClaimWindow(state, windowId);
+    const runtime = getRuntime(state);
+    if (runtime.clock.now() < window.deadline) throw new Error('Claim window is still open');
+
+    const pending = state.pendingDiscard;
+    let winningSeat = null;
+    let bestPriority = CLAIM_PRIORITY.length;
+    // Visit seats after the discarder, so equal-priority claims keep the earlier seat.
+    for (let offset = 1; offset < state.players.length; offset++) {
+        const seat = (pending.fromSeat + offset) % state.players.length;
+        if (window.choices[seat] !== 'claim') continue;
+        const claim = getBestClaim(state, seat);
+        if (claim === null) continue;
+        const priority = CLAIM_PRIORITY.indexOf(claim.kind);
+        if (priority < bestPriority) {
+            bestPriority = priority;
+            winningSeat = seat;
+        }
+    }
+
+    if (winningSeat !== null) {
+        applyClaim(state, winningSeat);
+    } else {
+        clearClaimWindow(state);
+        const nextSeat = (pending.fromSeat + 1) % state.players.length;
+        if (findChiTiles(state.players[nextSeat], pending.tile) !== null) {
+            state.retainedChi = { seat: nextSeat, windowId, tileInstanceId: pending.tile.id };
+        } else {
+            settlePendingDiscard(state);
+        }
+        state.currentSeat = nextSeat;
+        beginTurn(state);
+    }
+    runtime.onChange(state);
+    return state;
+}
+
+export function claimRetainedChi(state, seat, windowId) {
+    validateSeat(state, seat);
+    const retained = state.retainedChi;
+    if (!retained || retained.windowId !== windowId || retained.seat !== seat
+        || getBestClaim(state, seat)?.kind !== 'chi') throw new Error('No retained Chi available for this turn');
+    return applyClaim(state, seat);
+}
+
+// Trusted transition for the resolver; player Claim/Pass intents use submitClaim instead.
 export function applyClaim(state, seat) {
     const claim = getBestClaim(state, seat);
     if (claim === null) throw new Error('No claim available for this player');
 
     const pending = state.pendingDiscard;
     const player = state.players[seat];
+    clearClaimWindow(state);
+    state.retainedChi = null;
     state.pendingDiscard = null;
     if (claim.kind === 'win') {
         player.concealed.push(pending.tile);
@@ -89,20 +158,81 @@ export function applyClaim(state, seat) {
     return state;
 }
 
-function validateTurn(state, seat, expectedPhase) {
+function validateSeat(state, seat) {
     if (!Number.isInteger(seat) || seat < 0 || seat >= state.players.length) {
         throw new Error('Player seat must be 0, 1, 2 or 3');
     }
+}
+
+function validateTurn(state, seat, expectedPhase) {
+    validateSeat(state, seat);
     if (seat !== state.currentSeat) throw new Error('It is not this player\'s turn');
     if (state.phase !== expectedPhase) throw new Error(`Cannot ${expectedPhase} during ${state.phase}`);
 }
 
 function settlePendingDiscard(state) {
+    state.retainedChi = null;
     if (state.pendingDiscard) {
         const { tile, fromSeat } = state.pendingDiscard;
         state.players[fromSeat].discards.push(tile);
         state.pendingDiscard = null;
     }
+}
+
+function getRuntime(state) {
+    if (!roundRuntime.has(state)) {
+        roundRuntime.set(state, { clock: SYSTEM_CLOCK, onChange: () => {}, timer: null });
+    }
+    return roundRuntime.get(state);
+}
+
+function requireClaimWindow(state, windowId) {
+    const window = state.claimWindow;
+    if (state.phase !== 'claims' || !state.pendingDiscard || !window || window.id !== windowId) {
+        throw new Error('No matching claim window');
+    }
+    return window;
+}
+
+function openClaimWindow(state) {
+    clearClaimWindow(state);
+    const runtime = getRuntime(state);
+    const window = {
+        id: randomUUID(),
+        deadline: runtime.clock.now() + CLAIM_WINDOW_MS,
+        choices: Array(state.players.length).fill(null),
+    };
+    state.claimWindow = window;
+    function expire() {
+        if (state.phase !== 'claims' || state.claimWindow?.id !== window.id) return;
+        const remaining = window.deadline - runtime.clock.now();
+        if (remaining > 0) {
+            schedule(remaining);
+            return;
+        }
+        resolveClaims(state, window.id);
+    }
+    function schedule(delay) {
+        runtime.timer = runtime.clock.setTimeout(expire, delay);
+        runtime.timer?.unref?.();
+    }
+    schedule(CLAIM_WINDOW_MS);
+}
+
+function clearClaimWindow(state) {
+    const runtime = roundRuntime.get(state);
+    if (runtime && runtime.timer !== null) {
+        runtime.clock.clearTimeout(runtime.timer);
+        runtime.timer = null;
+    }
+    state.claimWindow = null;
+}
+
+function beginTurn(state) {
+    const player = state.players[state.currentSeat];
+    const targetSize = (MELDS_PER_HAND - player.melds.length) * 3 + 2;
+    if (player.concealed.length < targetSize) state.phase = 'drawFront';
+    else checkForWinOrDiscard(state);
 }
 
 function drawTile(state, seat, fromBack) {
@@ -134,6 +264,8 @@ function checkForWinOrDiscard(state) {
 }
 
 function endRound(state, reason, winner = null) {
+    clearClaimWindow(state);
+    state.retainedChi = null;
     state.phase = 'over';
     state.winner = winner;
     state.endReason = reason;
