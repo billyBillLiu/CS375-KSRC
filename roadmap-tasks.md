@@ -157,14 +157,14 @@ Use short, direct functions and add small helpers only when useful.
   **After:** M05, M18. **Done when:** All four browsers show their own hand at
   the bottom and agree on public tiles, turn and wall count.
 
-- [ ] **M20 — Select a tile and show action buttons.** Fill `canvas/input.js`
+- [x] **M20 — Select a tile and show action buttons.** Fill `canvas/input.js`
   with pointer-to-logical-coordinate conversion and topmost-tile selection. Add
   `ui/game-controls.js` for Discard, Draw Front, Draw Back, best Claim and Pass.
   Allow arrow-key selection and Enter to discard; show selected-tile text.
   **After:** M19. **Done when:** Only local concealed tiles can be selected,
   resized-table clicks still work, and buttons follow server-provided legal actions.
 
-- [ ] **M21 — Send and validate player actions.** Connect the controls to
+- [x] **M21 — Send and validate player actions.** Connect the controls to
   server handlers and engine transitions. Validate socket ownership and current
   round/turn/claim window, deduplicate request IDs, and reply with acceptance or
   a readable error. Disable action controls while a request is pending; change

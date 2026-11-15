@@ -51,3 +51,45 @@ test('maps melds and pending discards and sorts only the local hand without losi
     assert.equal(view.wallCount, 0);
     assert.equal(view.goldIndicator, null);
 });
+
+test('the drawn tile is the one new local tile and stays marked until discarded or the turn ends', async () => {
+    const { findDrawnTileId } = await import('../src/game/view.js');
+    const tile = (id) => ({ id, identity: '1WAN' });
+    const view = (ids, extra = {}) => ({ roundId: 'r', viewerSeat: 1, currentSeat: 1, phase: 'discard',
+        ownHand: ids.map(tile), ...extra });
+    const before = view(['a', 'b'], { phase: 'drawFront' });
+    const drawn = view(['a', 'b', 'c']);
+    drawn.drawnTileId = findDrawnTileId(before, drawn);
+    assert.equal(drawn.drawnTileId, 'c');
+    assert.equal(findDrawnTileId(drawn, view(['a', 'b', 'c'])), 'c');
+    assert.equal(findDrawnTileId(drawn, view(['a', 'b'], { phase: 'claims' })), null);
+    assert.equal(findDrawnTileId(drawn, view(['a', 'b', 'c'], { currentSeat: 2 })), null);
+    assert.equal(findDrawnTileId(null, drawn), null);
+    assert.equal(findDrawnTileId(before, view(['a', 'b', 'c'], { roundId: 'new' })), null);
+    assert.equal(findDrawnTileId(view(['a', 'b', 'x', 'y']), view(['a', 'b', 'c'])), 'c');
+});
+
+test('specials drawn this turn are all marked until the turn ends', async () => {
+    const { findDrawnSpecialIds } = await import('../src/game/view.js');
+    const view = (specials, extra = {}) => ({ roundId: 'r', viewerSeat: 0, currentSeat: 0, phase: 'drawBack',
+        players: [{ specials: specials.map((id) => ({ id, identity: 'FLO_1' })) }], ...extra });
+    const start = view(['s0'], { phase: 'drawFront' });
+    const first = view(['s0', 's1']);
+    first.drawnSpecialIds = findDrawnSpecialIds(start, first);
+    assert.deepEqual(first.drawnSpecialIds, ['s1']);
+    const second = view(['s0', 's1', 's2'], { phase: 'discard' });
+    second.drawnSpecialIds = findDrawnSpecialIds(first, second);
+    assert.deepEqual(second.drawnSpecialIds, ['s1', 's2']);
+    assert.deepEqual(findDrawnSpecialIds(second, view(['s0', 's1', 's2'], { phase: 'claims' })), []);
+    assert.deepEqual(findDrawnSpecialIds(null, first), []);
+});
+
+test('meld tiles are shown in rank order, not claim order', () => {
+    const snapshot = {
+        you: 0, currentSeat: 0, phase: 'discard', wallCount: 0, ownHand: [], gold: null, pendingDiscard: null,
+        players: [{ seat: 0, concealedCount: 0, specials: [], discards: [], melds: [{ id: 1, kind: 'chi', fromSeat: 3,
+            tiles: ['8WAN', '7WAN', '9WAN'].map((tileId, index) => ({ id: `t${index}`, tileId })) }] }],
+    };
+    const identities = createTableView(snapshot).players[0].melds[0].tiles.map(tile => tile.identity);
+    assert.deepEqual(identities, ['7WAN', '8WAN', '9WAN']);
+});

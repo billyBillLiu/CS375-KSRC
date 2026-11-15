@@ -22,6 +22,10 @@ export function layoutHand(absoluteSeat, viewerSeat, count) {
     return layoutPlayerHand(absoluteSeat, viewerSeat, count).map(({ x, y, direction }) => ({ x, y, direction }));
 }
 
+// Matches the hand crop in atlas.js; drawing and click hit tests both use it.
+export const HAND_TILE_WIDTH = 20;
+export const HAND_TILE_HEIGHT = 31;
+
 export const DISCARD_CAPACITY = 8;
 export const SPECIAL_CAPACITY = 24;
 

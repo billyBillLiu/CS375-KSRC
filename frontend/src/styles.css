@@ -41,3 +41,8 @@ canvas {
 .round-details summary { cursor: pointer; }
 .round-details ol { display: flex; flex-wrap: wrap; gap: 8px 32px; padding-left: 32px; }
 .round-details li { padding-right: 8px; }
+
+.game-controls { margin: 12px 0; }
+.game-controls p { margin: 6px 0; }
+.action-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.action-status { color: #f2b8a0; }

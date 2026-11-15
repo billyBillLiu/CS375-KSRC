@@ -9,7 +9,11 @@ export const CLIENT_MESSAGES = Object.freeze({
     JOIN_ROOM: 'joinRoom',      // { roomId, name }
     READY: 'ready',             // { ready: boolean }
     LEAVE_ROOM: 'leaveRoom',    // {}
+    // { requestId, roundId, kind: ACTION_KINDS, tileId? (discard), windowId? (claim/pass) }
+    ACTION: 'action',
 });
+
+export const ACTION_KINDS = Object.freeze(['drawFront', 'drawBack', 'discard', 'claim', 'pass']);
 
 export const SERVER_MESSAGES = Object.freeze({
     // { rooms: [{ id, playerNames: string[], isFull }] }, sent to everyone not in a room
@@ -18,6 +22,8 @@ export const SERVER_MESSAGES = Object.freeze({
     ROOM_STATE: 'roomState',
     // Full personalized game view; never includes wall order or opponents' hands.
     SNAPSHOT: 'snapshot',
+    // { requestId, accepted: boolean, reason? }, sent only to the player who acted
+    ACTION_RESULT: 'actionResult',
     ERROR: 'error',             // { reason }
 });
 

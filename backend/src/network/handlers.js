@@ -34,6 +34,8 @@ function route(rooms, socket, { type, payload }) {
             return rooms.setReady(socket, payload.ready);
         case CLIENT_MESSAGES.LEAVE_ROOM:
             return rooms.leaveRoom(socket);
+        case CLIENT_MESSAGES.ACTION:
+            return rooms.playerAction(socket, payload);
         default:
             throw new RoomError(`unknown message type ${type}`);
     }

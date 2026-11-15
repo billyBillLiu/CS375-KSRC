@@ -35,6 +35,17 @@
             <canvas id="game" width="384" height="216" aria-label="Mahjong table">
                 This game requires a browser that supports HTML Canvas.
             </canvas>
+            <section class="game-controls" aria-label="Game controls" hidden>
+                <p class="selected-tile" role="status"></p>
+                <div class="action-buttons">
+                    <button type="button" data-action="drawFront">Draw front</button>
+                    <button type="button" data-action="drawBack">Draw back</button>
+                    <button type="button" data-action="discard">Discard</button>
+                    <button type="button" data-action="claim">Claim</button>
+                    <button type="button" data-action="pass">Pass</button>
+                </div>
+                <p class="action-status" role="status"></p>
+            </section>
             <p class="status" role="status"></p>
             <p class="connection-status" role="status"></p>
             <div class="round-details"></div>
