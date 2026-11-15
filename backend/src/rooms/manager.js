@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createRound } from '../game/engine.js';
+import { claimRetainedChi, createRound, discard, drawBack, drawFront, submitClaim } from '../game/engine.js';
 import { createGameView } from '../game/view.js';
 import { MAX_NAME_LENGTH, SEAT_COUNT, SERVER_MESSAGES, createMessage } from '../../../shared/protocol.js';
 
@@ -97,6 +97,7 @@ export function createRoomManager({ createGame = createRound, now = Date.now } =
         if (room.seats.every((player) => player?.ready && sockets.has(player.socket)
             && (player.socket.readyState === undefined || player.socket.readyState === 1))) {
             room.roundId = randomUUID();
+            room.actionResults = new Map();
             room.round = createGame({ onChange: () => broadcastSnapshots(room) });
         }
         broadcastRoomState(room);
@@ -118,13 +119,66 @@ export function createRoomManager({ createGame = createRound, now = Date.now } =
         broadcastRoomList();
     }
 
+    // Always replies with ACTION_RESULT so the client can clear its pending request.
+    function playerAction(socket, payload) {
+        const { requestId } = payload;
+        if (typeof requestId !== 'string' || requestId.length === 0 || requestId.length > 64) {
+            throw new RoomError('action needs a request ID');
+        }
+        let result;
+        try {
+            const { room, seat } = membershipOf(socket);
+            if (!room.round) throw new RoomError('no round in progress');
+            if (payload.roundId !== room.roundId) throw new RoomError('that action is for an earlier round');
+            // ponytail: one map per round; it grows by one entry per action and is dropped with the round.
+            const previous = room.actionResults.get(`${seat}:${requestId}`);
+            if (previous) {
+                send(socket, SERVER_MESSAGES.ACTION_RESULT, previous);
+                return;
+            }
+            try {
+                applyAction(room.round, seat, payload);
+                result = { requestId, accepted: true };
+            } catch (error) {
+                if (error instanceof RoomError) throw error;
+                // The engine validates before changing state, so a rejected action changes nothing.
+                result = { requestId, accepted: false, reason: error.message };
+            }
+            room.actionResults.set(`${seat}:${requestId}`, result);
+            send(socket, SERVER_MESSAGES.ACTION_RESULT, result);
+            if (result.accepted) broadcastSnapshots(room);
+        } catch (error) {
+            if (!(error instanceof RoomError)) throw error;
+            send(socket, SERVER_MESSAGES.ACTION_RESULT, { requestId, accepted: false, reason: error.message });
+        }
+    }
+
     // TODO(M24): Once rounds exist, end the active round and tell the others why.
     function removeConnection(socket) {
         if (membershipBySocket.has(socket)) leaveRoom(socket);
         sockets.delete(socket);
     }
 
-    return { addConnection, removeConnection, listRooms, createRoom, joinRoom, setReady, leaveRoom };
+    return { addConnection, removeConnection, listRooms, createRoom, joinRoom, setReady, leaveRoom, playerAction };
+}
+
+function applyAction(state, seat, { kind, tileId, windowId }) {
+    switch (kind) {
+        case 'drawFront':
+            return drawFront(state, seat);
+        case 'drawBack':
+            return drawBack(state, seat);
+        case 'discard':
+            return discard(state, seat, tileId);
+        case 'pass':
+            return submitClaim(state, seat, windowId, 'pass');
+        case 'claim':
+            // Outside the claim window, the only claim is a retained Chi on this player's turn.
+            if (state.phase === 'claims') return submitClaim(state, seat, windowId, 'claim');
+            return claimRetainedChi(state, seat, windowId);
+        default:
+            throw new RoomError(`unknown action ${kind}`);
+    }
 }
 
 function cleanName(name, seat) {

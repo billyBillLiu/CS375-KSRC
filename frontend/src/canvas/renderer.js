@@ -1,6 +1,6 @@
 import { backs, drawSprite, loadAtlas, loadImage, tableSprites, tiles } from './atlas.js';
 
-import { CENTER_TABLE, layoutPlayerHand, layoutDiscards, SPECIAL_CAPACITY, TABLE_WIDTH, TABLE_HEIGHT } from './layout.js';
+import { CENTER_TABLE, HAND_TILE_HEIGHT, HAND_TILE_WIDTH, layoutPlayerHand, layoutDiscards, SPECIAL_CAPACITY, TABLE_WIDTH, TABLE_HEIGHT } from './layout.js';
 
 export async function initializeRenderer(canvas) {
     const context = canvas.getContext('2d');
@@ -41,6 +41,8 @@ export async function initializeRenderer(canvas) {
                     context.translate(x, y);
                     context.scale(scale, scale);
                     drawSprite(context, atlas, sprite, 0, 0);
+                    if (isLocal && !isMeld && tile.id === view.drawnTileId) outlineHandTile('#7fd4ff');
+                    if (isLocal && !isMeld && tile.id === view.selectedTileId) outlineHandTile('#ffd34d');
                     context.restore();
                 });
                 const discards = player.discards ?? [];
@@ -49,7 +51,8 @@ export async function initializeRenderer(canvas) {
                 });
                 if (isLocal) {
                     (player.specials ?? []).slice(0, SPECIAL_CAPACITY).forEach((tile, index) => {
-                        drawScaled(tiles[tile.identity].revealed.south, 12 + index * 9, 199, 0.4);
+                        const highlight = view.drawnSpecialIds?.includes(tile.id) ? '#7fd4ff' : null;
+                        drawScaled(tiles[tile.identity].revealed.south, 12 + index * 9, 199, 0.4, highlight);
                     });
                 }
 
@@ -81,11 +84,20 @@ export async function initializeRenderer(canvas) {
         }
     }
 
-    function drawScaled(sprite, x, y, scale) {
+    // Called inside a tile's translated and scaled context.
+    function outlineHandTile(color, lineWidth = 1.5) {
+        context.strokeStyle = color;
+        context.lineWidth = lineWidth;
+        context.strokeRect(-HAND_TILE_WIDTH / 2, -HAND_TILE_HEIGHT / 2, HAND_TILE_WIDTH, HAND_TILE_HEIGHT);
+    }
+
+    // Only hand-sized sprites (the specials row) pass an outline color.
+    function drawScaled(sprite, x, y, scale, outlineColor = null) {
         context.save();
         context.translate(x, y);
         context.scale(scale, scale);
         drawSprite(context, atlas, sprite, 0, 0);
+        if (outlineColor) outlineHandTile(outlineColor, 3);
         context.restore();
     }
 

@@ -3,7 +3,9 @@ import { CLIENT_MESSAGES, SERVER_MESSAGES } from '../../shared/protocol.js';
 import { initializeRenderer } from './canvas/renderer.js';
 import { connectToServer } from './network/client.js';
 import { createLobby } from './ui/lobby.js';
-import { createTableView } from './game/view.js';
+import { createGameControls } from './ui/game-controls.js';
+import { findHandTileAt, toLogicalPoint } from './canvas/input.js';
+import { createTableView, findDrawnSpecialIds, findDrawnTileId } from './game/view.js';
 import { renderRoundDetails } from './ui/round-details.js';
 
 const canvas = document.querySelector('#game');
@@ -17,9 +19,28 @@ const samplePreview = import.meta.env.DEV && params.has('sample');
 let renderer = null;
 let tableView = null;
 
+const controls = createGameControls(document.querySelector('.game-controls'), {
+    send: (type, payload) => connection.send(type, payload),
+    onSelectionChange: (selectedTileId) => drawTable(selectedTileId),
+});
+
+function drawTable(selectedTileId) {
+    renderer?.setView(tableView && { ...tableView, selectedTileId });
+}
+
+canvas.addEventListener('click', (event) => {
+    if (!tableView) return;
+    const { x, y } = toLogicalPoint(canvas, event);
+    const tileId = findHandTileAt(tableView, x, y);
+    if (tileId !== null) controls.select(tileId);
+});
+
 function showSnapshot(snapshot) {
-    tableView = createTableView(snapshot);
-    renderer?.setView(tableView);
+    const nextView = createTableView(snapshot);
+    nextView.drawnTileId = findDrawnTileId(tableView, nextView);
+    nextView.drawnSpecialIds = findDrawnSpecialIds(tableView, nextView);
+    tableView = nextView;
+    drawTable(controls.setView(tableView));
     const youLabel = tableView.currentSeat === tableView.viewerSeat ? ' (you)' : '';
     const turnText = tableView.phase === 'over'
         ? 'Round ended' : `Turn: seat ${tableView.currentSeat}${youLabel}`;
@@ -33,6 +54,7 @@ function showSnapshot(snapshot) {
 
 function clearRound() {
     tableView = null;
+    controls.clear();
     renderer?.setView(null);
     roundSummary.textContent = '';
     seatSummary.textContent = '';
@@ -62,6 +84,8 @@ const connection = connectToServer({
             if (!samplePreview && !payload.roundId) clearRound();
         } else if (type === SERVER_MESSAGES.SNAPSHOT && !samplePreview) {
             showSnapshot(payload);
+        } else if (type === SERVER_MESSAGES.ACTION_RESULT) {
+            controls.handleResult(payload);
         } else if (type === SERVER_MESSAGES.ERROR) {
             connectionStatus.textContent = `Server error: ${payload.reason}`;
         }
