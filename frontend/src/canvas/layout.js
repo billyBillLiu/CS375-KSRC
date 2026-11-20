@@ -29,34 +29,48 @@ export const HAND_TILE_HEIGHT = 31;
 export const DISCARD_CAPACITY = 8;
 export const SPECIAL_CAPACITY = 24;
 
+// Logical row length and per-tile step for each visual seat. Side-seat meld art
+// is 16 units tall, so melds need a wider step than the 6-unit backs to stay readable.
+// North and West meld art reads against the row direction, so their meld tiles are reversed.
+const HAND_ROWS = [
+    { length: 340, concealedStep: 20, meldStep: 20, reverseMelds: false },
+    { length: 102, concealedStep: 6, meldStep: 12, reverseMelds: false },
+    { length: 238, concealedStep: 14, meldStep: 14, reverseMelds: true },
+    { length: 102, concealedStep: 6, meldStep: 12, reverseMelds: true },
+];
+
 // Include a small gap before each locked meld and shrink the entire row to fit.
 export function layoutPlayerHand(seat, viewerSeat, concealedCount, melds = []) {
-    const count = concealedCount + melds.reduce((sum, meld) => sum + meld.tiles.length, 0);
-    const slots = count + melds.length * 0.5;
-    const scale = Math.min(1, 17 / Math.max(1, slots));
     const visualSeat = getVisualSeat(seat, viewerSeat);
-    const items = [];
-    let slot = 0;
-    function append(tileIndex, meldIndex) {
-        const centered = slot - (slots - 1) / 2;
-        const direction = visualSeat === 1 ? 1 : -1;
-        let x = 192;
-        let y = visualSeat === 0 ? 178.22 : 41;
-        if (visualSeat === 0 || visualSeat === 2) {
-            x += centered * (visualSeat === 0 ? 20 : -14) * scale;
-        } else {
-            x = (visualSeat === 1 ? 314 : 70) + slot * 3 * direction * scale;
-            y = 101 + centered * 6 * scale;
-        }
-        items.push({ x, y, scale, direction: DIRECTIONS[visualSeat], tileIndex, meldIndex });
-        slot += 1;
+    const row = HAND_ROWS[visualSeat];
+    const slots = [];
+    let offset = 0;
+    function addSlot(step, tileIndex, meldIndex) {
+        slots.push({ center: offset + step / 2, tileIndex, meldIndex });
+        offset += step;
     }
-    for (let index = 0; index < concealedCount; index += 1) append(index, null);
+    for (let index = 0; index < concealedCount; index += 1) addSlot(row.concealedStep, index, null);
     melds.forEach((meld, meldIndex) => {
-        slot += 0.5;
-        meld.tiles.forEach((tile, index) => append(index, meldIndex));
+        offset += row.meldStep / 2;
+        const count = meld.tiles.length;
+        for (let index = 0; index < count; index += 1) {
+            addSlot(row.meldStep, row.reverseMelds ? count - 1 - index : index, meldIndex);
+        }
     });
-    return items;
+
+    const scale = Math.min(1, row.length / Math.max(row.concealedStep, offset));
+    return slots.map(({ center, tileIndex, meldIndex }) => {
+        const centered = (center - offset / 2) * scale;
+        let x = 192 + (visualSeat === 0 ? centered : -centered);
+        let y = visualSeat === 0 ? 178.22 : 41;
+        if (visualSeat === 1 || visualSeat === 3) {
+            // The side rows slant outward half a unit per unit of length, indexed from the first tile.
+            const slant = (center - row.concealedStep / 2) / 2 * scale;
+            x = visualSeat === 1 ? 314 + slant : 70 - slant;
+            y = 101 + centered;
+        }
+        return { x, y, scale, direction: DIRECTIONS[visualSeat], tileIndex, meldIndex };
+    });
 }
 
 export function layoutDiscards(seat, viewerSeat, count) {

@@ -49,6 +49,20 @@ test('five Kongs and a pair retain all 22 tiles within the table from every seat
     }
 });
 
+test('opponent melds read in rank order along their artwork and stay legible on side seats', () => {
+    const melds = [{ tiles: Array(3).fill({ identity: '1WAN' }) }];
+    // Screen order (left-to-right, or top-to-bottom on side seats) of meld tile indexes.
+    const north = layoutPlayerHand(2, 0, 3, melds).filter(item => item.meldIndex === 0)
+        .sort((a, b) => a.x - b.x).map(item => item.tileIndex);
+    assert.deepEqual(north, [0, 1, 2]);
+    for (const [seat, expected] of [[1, [0, 1, 2]], [3, [2, 1, 0]]]) {
+        const meld = layoutPlayerHand(seat, 0, 13, melds).filter(item => item.meldIndex === 0)
+            .sort((a, b) => a.y - b.y);
+        assert.deepEqual(meld.map(item => item.tileIndex), expected);
+        assert.ok(meld[1].y - meld[0].y >= 11.99 * meld[0].scale);
+    }
+});
+
 test('discard rows cap the visible pile and preserve existing positions as it grows', () => {
     for (let viewer = 0; viewer < 4; viewer += 1) {
         const full = layoutDiscards(0, viewer, 25);

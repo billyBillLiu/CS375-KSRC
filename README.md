@@ -26,8 +26,10 @@ and legal actions. Each browser renders its sorted hand at the bottom, opponent
 backs, Gold and public tiles, with seat labels, the current turn and wall count.
 Gameplay controls are not implemented yet.
 
-To view a live round, open four browser tabs, create a room in one, join it in
-the other three, and click Ready in each. Expand the details below the table to
+To view a live round, open four browser tabs and click **Create game** on the
+table in one. Its address changes to `/?room=<id>`; open that invite link in
+the other three tabs (or click **Join Game** and pick the room or enter its code),
+then click Ready in each. The lobby menus also work with Tab and Enter. Separate rooms can run at the same time. Expand the details below the table to
 inspect public melds, specials and discards.
 
 ## Setup

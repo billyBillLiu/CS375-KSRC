@@ -1,5 +1,6 @@
 import { backs, drawSprite, loadAtlas, loadImage, tableSprites, tiles } from './atlas.js';
 
+import { drawMenu } from './menu.js';
 import { CENTER_TABLE, HAND_TILE_HEIGHT, HAND_TILE_WIDTH, layoutPlayerHand, layoutDiscards, SPECIAL_CAPACITY, TABLE_WIDTH, TABLE_HEIGHT } from './layout.js';
 
 export async function initializeRenderer(canvas) {
@@ -15,6 +16,7 @@ export async function initializeRenderer(canvas) {
     ]);
 
     let view = null;
+    let menu = null;
 
     function draw() {
         const { width, height } = canvas.getBoundingClientRect();
@@ -35,8 +37,11 @@ export async function initializeRenderer(canvas) {
                 positions.forEach(({ x, y, scale, direction, tileIndex, meldIndex }) => {
                     const isMeld = meldIndex !== null;
                     const tile = isMeld ? melds[meldIndex].tiles[tileIndex] : view.ownHand[tileIndex];
+                    // Only the local concealed hand marks Gold; melds, discards and opponents stay plain.
+                    const isGold = isLocal && !isMeld && tile.identity === view.goldIndicator?.identity;
                     const sprite = isMeld ? tiles[tile.identity].revealed[direction]
-                        : isLocal ? tiles[tile.identity].hand : backs[direction];
+                        : isGold ? tiles[tile.identity].goldHand
+                            : isLocal ? tiles[tile.identity].hand : backs[direction];
                     context.save();
                     context.translate(x, y);
                     context.scale(scale, scale);
@@ -62,6 +67,7 @@ export async function initializeRenderer(canvas) {
                 label(`Seat ${view.pendingDiscard.seat} discard`, 192, 119);
             }
         }
+        if (menu) drawMenu(context, atlas, menu);
     }
 
     function drawCenter() {
@@ -116,6 +122,11 @@ export async function initializeRenderer(canvas) {
     return {
         setView(nextView) {
             view = nextView;
+            draw();
+        },
+        // The lobby menu is drawn over the table; null hides it.
+        setMenu(nextMenu) {
+            menu = nextMenu;
             draw();
         },
         destroy() {

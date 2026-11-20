@@ -29,6 +29,8 @@ for (const [suitIndex, suit] of ['WAN', 'TAO', 'BIN'].entries()) {
                 west: crop((8 - column) * 28, 429 + suitIndex * 17, 27, 16),
             },
         };
+        // Gold art scaled to the hand slot, marking the local player's wildcards.
+        tiles[`${rank}${suit}`].goldHand = { ...tiles[`${rank}${suit}`].gold, width: 20, height: 31 };
     }
 }
 

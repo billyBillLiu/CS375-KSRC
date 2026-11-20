@@ -1,90 +1,183 @@
-import { CLIENT_MESSAGES, MAX_NAME_LENGTH, SEAT_COUNT } from '../../../shared/protocol.js';
+import { CLIENT_MESSAGES, MAX_NAME_LENGTH } from '../../../shared/protocol.js';
+import { findMenuItemAt, isFocusable, layoutMenu } from '../canvas/menu.js';
 
-// Room list before joining; seats with Ready/Leave after joining. Every view is
-// redrawn from the latest server message, so all windows show the same membership.
-export function createLobby(root, send) {
-    const roomListView = root.querySelector('.lobby-rooms');
-    const roomView = root.querySelector('.lobby-room');
-    const nameInput = root.querySelector('#player-name');
-    const roomList = root.querySelector('#room-list');
-    const roomTitle = root.querySelector('#room-title');
-    const seatList = root.querySelector('#seat-list');
-    const readyStatus = root.querySelector('#ready-status');
-    const readyButton = root.querySelector('#ready-toggle');
-    let isReady = false;
+const NAME_STORAGE_KEY = 'mahjong-player-name';
+
+// Lobby state for the Canvas menu (home, join and room screens). Typing goes to
+// visually hidden inputs so native keyboards, IME and autofill still work.
+// Every screen is redrawn from the latest server message, so all windows agree.
+export function createLobby({ canvas, nameInput, codeInput, send, onChange }) {
+    const state = {
+        visible: true,
+        screen: 'home',
+        connected: false,
+        rooms: [],
+        room: null,
+        message: '',
+        messageIsError: false,
+        focusId: null,
+        hoverId: null,
+    };
 
     nameInput.maxLength = MAX_NAME_LENGTH;
-
-    root.querySelector('.lobby-create').addEventListener('submit', (event) => {
-        event.preventDefault();
-        send(CLIENT_MESSAGES.CREATE_ROOM, { name: nameInput.value });
+    // The saved name lets an invite link join without retyping it.
+    nameInput.value = localStorage.getItem(NAME_STORAGE_KEY) ?? '';
+    nameInput.addEventListener('input', () => {
+        localStorage.setItem(NAME_STORAGE_KEY, nameInput.value);
+        update();
     });
-    readyButton.addEventListener('click', () => send(CLIENT_MESSAGES.READY, { ready: !isReady }));
-    root.querySelector('#leave-room').addEventListener('click', () => send(CLIENT_MESSAGES.LEAVE_ROOM));
+    codeInput.addEventListener('input', update);
 
-    function roomListItem(room) {
-        const item = document.createElement('li');
-        const label = document.createElement('span');
-        const names = room.playerNames.join(', ');
-        label.textContent = `Room ${room.id} · ${room.playerNames.length}/${SEAT_COUNT} · ${names}`;
+    const inputsByField = { name: nameInput, code: codeInput };
 
-        const joinButton = document.createElement('button');
-        joinButton.type = 'button';
-        joinButton.textContent = room.isFull ? 'Full' : 'Join';
-        joinButton.disabled = room.isFull;
-        joinButton.addEventListener('click', () => {
-            send(CLIENT_MESSAGES.JOIN_ROOM, { roomId: room.id, name: nameInput.value });
-        });
-
-        item.append(label, joinButton);
-        return item;
+    function menuState() {
+        return { ...state, name: nameInput.value, code: codeInput.value };
     }
 
-    function showRoomList(rooms) {
-        roomListView.hidden = false;
-        roomView.hidden = true;
-        if (rooms.length === 0) {
-            const empty = document.createElement('li');
-            empty.textContent = 'No open rooms yet. Create one to start.';
-            roomList.replaceChildren(empty);
-        } else {
-            roomList.replaceChildren(...rooms.map(roomListItem));
+    function currentItems() {
+        return layoutMenu(menuState());
+    }
+
+    function update() {
+        const focused = currentItems().find((item) => item.id === state.focusId);
+        canvas.setAttribute('aria-label', focused
+            ? `Mahjong lobby: ${focused.label ?? focused.placeholder}`
+            : 'Mahjong lobby. Press Tab to move between buttons and Enter to choose.');
+        onChange(state.visible ? menuState() : null);
+    }
+
+    function setMessage(message, isError = true) {
+        state.message = message;
+        state.messageIsError = isError;
+    }
+
+    function showScreen(screen) {
+        state.screen = screen;
+        setMessage('');
+        setFocus(screen === 'join' ? 'code' : null);
+    }
+
+    function setFocus(id) {
+        state.focusId = id;
+        const input = inputsByField[id];
+        if (input) input.focus({ preventScroll: true });
+        else if (document.activeElement === nameInput || document.activeElement === codeInput) {
+            document.activeElement.blur();
         }
     }
 
-    function showRoomState({ roomId, you, seats, roundId }) {
-        roomListView.hidden = true;
-        roomView.hidden = false;
-        roomTitle.textContent = `Room ${roomId}`;
+    function joinRoom(roomId) {
+        setMessage('');
+        send(CLIENT_MESSAGES.JOIN_ROOM, { roomId, name: nameInput.value });
+        update();
+    }
 
-        isReady = seats[you]?.ready === true;
-        readyButton.disabled = Boolean(roundId);
-        readyButton.textContent = isReady ? 'Not ready' : 'Ready';
-        readyButton.setAttribute('aria-pressed', String(isReady));
+    function activate(id) {
+        if (id === 'name') return activate('create');
+        if (id === 'code') return activate('joinCode');
+        const item = currentItems().find((candidate) => candidate.id === id);
+        if (!item || item.disabled) return;
+        if (id === 'create') {
+            setMessage('');
+            send(CLIENT_MESSAGES.CREATE_ROOM, { name: nameInput.value });
+        } else if (id === 'openJoin') {
+            showScreen('join');
+            send(CLIENT_MESSAGES.LIST_ROOMS);
+        } else if (id === 'joinCode') {
+            joinRoom(codeInput.value.trim());
+        } else if (id.startsWith('room:')) {
+            joinRoom(id.slice('room:'.length));
+        } else if (id === 'back') {
+            showScreen('home');
+        } else if (id === 'ready') {
+            send(CLIENT_MESSAGES.READY, { ready: state.room.seats[state.room.you]?.ready !== true });
+        } else if (id === 'leave') {
+            send(CLIENT_MESSAGES.LEAVE_ROOM);
+        } else if (id === 'copyLink') {
+            navigator.clipboard?.writeText(state.room.inviteUrl).then(
+                () => setMessage('Invite link copied.', false),
+                () => setMessage('Copy failed — use the address bar link.'),
+            ).finally(update);
+        }
+        update();
+    }
 
-        seatList.replaceChildren(...seats.map((seat, index) => {
-            const item = document.createElement('li');
-            if (!seat) {
-                item.textContent = 'Empty seat';
-                item.className = 'seat-empty';
-            } else {
-                const youLabel = index === you ? ' (you)' : '';
-                item.textContent = `${seat.name}${youLabel} — ${seat.ready ? 'Ready' : 'Not ready'}`;
-                if (seat.ready) item.className = 'seat-ready';
+    function moveFocus(step) {
+        const focusable = currentItems().filter(isFocusable);
+        if (focusable.length === 0) return;
+        const current = focusable.findIndex((item) => item.id === state.focusId);
+        const next = current === -1 ? (step > 0 ? 0 : focusable.length - 1)
+            : (current + step + focusable.length) % focusable.length;
+        setFocus(focusable[next].id);
+        update();
+    }
+
+    document.addEventListener('keydown', (event) => {
+        if (!state.visible) return;
+        if (event.key === 'Tab') {
+            event.preventDefault();
+            moveFocus(event.shiftKey ? -1 : 1);
+        } else if (event.key === 'Enter' && state.focusId !== null) {
+            event.preventDefault();
+            activate(state.focusId);
+        } else if (event.key === 'Escape' && state.screen === 'join') {
+            showScreen('home');
+            update();
+        }
+    });
+
+    return {
+        isVisible: () => state.visible,
+        menuState: () => (state.visible ? menuState() : null),
+        joinRoom,
+        // Returns true when the click landed on the menu, which covers the whole table.
+        click(x, y) {
+            if (!state.visible) return false;
+            const item = findMenuItemAt(currentItems(), x, y);
+            setFocus(item?.id ?? null);
+            if (item && item.type === 'button') activate(item.id);
+            else update();
+            return true;
+        },
+        // Returns true when the pointer is over a clickable item.
+        hover(x, y) {
+            if (!state.visible) return false;
+            const id = findMenuItemAt(currentItems(), x, y)?.id ?? null;
+            if (id !== state.hoverId) {
+                state.hoverId = id;
+                update();
             }
-            return item;
-        }));
-
-        const readyCount = seats.filter((seat) => seat?.ready).length;
-        readyStatus.textContent = roundId
-            ? 'Round in progress.'
-            : `${readyCount}/${SEAT_COUNT} ready. The round starts when all four players are ready.`;
-    }
-
-    // Blocks lobby input while the socket is not open, so clicks are never silently dropped.
-    function setConnected(connected) {
-        root.inert = !connected;
-    }
-
-    return { showRoomList, showRoomState, setConnected };
+            return id !== null;
+        },
+        showRoomList(rooms) {
+            state.rooms = rooms;
+            state.visible = true;
+            if (state.screen === 'room') showScreen('home');
+            state.room = null;
+            update();
+        },
+        // The menu hides while a round is in progress so the table is playable.
+        showRoomState({ roomId, you, seats, roundId }, inviteUrl) {
+            if (state.screen !== 'room') showScreen('room');
+            state.room = { roomId, you, seats, inviteUrl };
+            state.visible = !roundId;
+            // A focused hidden input would swallow the game's arrow-key controls.
+            if (!state.visible) setFocus(null);
+            update();
+        },
+        showMessage(message, isError = true) {
+            setMessage(message, isError);
+            update();
+        },
+        // Blocks menu input while the socket is not open, so clicks are never silently dropped.
+        setConnected(connected) {
+            state.connected = connected;
+            update();
+        },
+        hide() {
+            state.visible = false;
+            setFocus(null);
+            update();
+        },
+    };
 }

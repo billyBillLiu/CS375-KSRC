@@ -70,7 +70,7 @@ export function createGameControls(root, { send, onSelectionChange }) {
         buttons.claim.textContent = legal.claim ? `Claim (${legal.claim})` : 'Claim';
         const selected = view?.ownHand.find((tile) => tile.id === selectedTileId);
         selectedText.textContent = selected
-            ? `Selected: ${selected.identity}`
+            ? `Selected: ${selected.identity}${selected.identity === view.goldIndicator?.identity ? ' (Gold)' : ''}`
             : 'Click a tile in your hand, or use ← and →, to select it.';
     }
 

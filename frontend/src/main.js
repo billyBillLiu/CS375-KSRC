@@ -29,10 +29,15 @@ function drawTable(selectedTileId) {
 }
 
 canvas.addEventListener('click', (event) => {
-    if (!tableView) return;
     const { x, y } = toLogicalPoint(canvas, event);
+    if (lobby.click(x, y) || !tableView) return;
     const tileId = findHandTileAt(tableView, x, y);
     if (tileId !== null) controls.select(tileId);
+});
+
+canvas.addEventListener('mousemove', (event) => {
+    const { x, y } = toLogicalPoint(canvas, event);
+    canvas.style.cursor = lobby.hover(x, y) ? 'pointer' : '';
 });
 
 function showSnapshot(snapshot) {
@@ -61,7 +66,24 @@ function clearRound() {
     roundDetails.replaceChildren();
 }
 
-const lobby = createLobby(document.querySelector('.lobby'), (type, payload) => connection.send(type, payload));
+const lobby = createLobby({
+    canvas,
+    nameInput: document.querySelector('#player-name'),
+    codeInput: document.querySelector('#room-code'),
+    send: (type, payload) => connection.send(type, payload),
+    onChange: (menu) => renderer?.setMenu(menu),
+});
+if (samplePreview || params.has('atlas')) lobby.hide();
+
+// Each room has its own ?room= URL, so an invite link opens straight into that room.
+let urlRoomToJoin = params.get('room');
+
+function setRoomInUrl(roomId) {
+    const url = new URL(window.location.href);
+    if (roomId === null) url.searchParams.delete('room');
+    else url.searchParams.set('room', roomId);
+    window.history.replaceState(null, '', url);
+}
 
 const connection = connectToServer({
     onStatus(state) {
@@ -69,25 +91,38 @@ const connection = connectToServer({
         if (state === 'connecting') connectionStatus.textContent = 'Connecting to server…';
         if (state === 'open') {
             connectionStatus.textContent = 'Connected';
-            connection.send(CLIENT_MESSAGES.LIST_ROOMS);
+            if (urlRoomToJoin) lobby.joinRoom(urlRoomToJoin);
+            else connection.send(CLIENT_MESSAGES.LIST_ROOMS);
         }
         if (state === 'closed') connectionStatus.textContent = 'Connection lost. Reload the page to reconnect.';
     },
     onMessage({ type, payload }) {
+        if (samplePreview) return;
         if (type === SERVER_MESSAGES.ROOM_LIST) {
             connectionStatus.textContent = 'Connected';
+            // Other rooms' changes can arrive while the invite link's join is pending.
+            if (!urlRoomToJoin) setRoomInUrl(null);
             lobby.showRoomList(payload.rooms);
-            if (!samplePreview) clearRound();
+            clearRound();
         } else if (type === SERVER_MESSAGES.ROOM_STATE) {
             connectionStatus.textContent = 'Connected';
-            lobby.showRoomState(payload);
-            if (!samplePreview && !payload.roundId) clearRound();
-        } else if (type === SERVER_MESSAGES.SNAPSHOT && !samplePreview) {
+            urlRoomToJoin = null;
+            setRoomInUrl(payload.roomId);
+            lobby.showRoomState(payload, window.location.href);
+            if (!payload.roundId) clearRound();
+        } else if (type === SERVER_MESSAGES.SNAPSHOT) {
             showSnapshot(payload);
         } else if (type === SERVER_MESSAGES.ACTION_RESULT) {
             controls.handleResult(payload);
         } else if (type === SERVER_MESSAGES.ERROR) {
             connectionStatus.textContent = `Server error: ${payload.reason}`;
+            if (urlRoomToJoin) {
+                lobby.showMessage(`Could not join room ${urlRoomToJoin}: ${payload.reason}`);
+                urlRoomToJoin = null;
+                connection.send(CLIENT_MESSAGES.LIST_ROOMS);
+            } else {
+                lobby.showMessage(payload.reason);
+            }
         }
     },
 });
@@ -96,6 +131,7 @@ try {
     renderer = await initializeRenderer(canvas);
     // A snapshot can arrive while the artwork is still loading.
     renderer.setView(tableView);
+    renderer.setMenu(lobby.menuState());
     if (import.meta.env.DEV) {
         if (params.has('sample') || params.has('atlas')) {
             const fixtures = await import('./dev/fixtures.js');
