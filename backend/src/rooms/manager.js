@@ -1,14 +1,23 @@
 import { randomUUID } from 'node:crypto';
-import { claimRetainedChi, createRound, discard, drawBack, drawFront, submitClaim } from '../game/engine.js';
+import {
+    abandonRound, claimRetainedChi, createRound, discard, drawBack, drawFront, pauseRound, resumeRound, submitClaim,
+} from '../game/engine.js';
 import { createGameView } from '../game/view.js';
 import { MAX_NAME_LENGTH, SEAT_COUNT, SERVER_MESSAGES, createMessage } from '../../../shared/protocol.js';
+
+// How long a disconnected player's seat is held during a round before it ends.
+export const RECONNECT_HOLD_MS = 30000;
+const NO_ACTIONS = Object.freeze({ drawFront: false, drawBack: false, discard: false, claim: null, pass: false });
 
 // Thrown for requests the player cannot make; the message is sent back as an error.
 export class RoomError extends Error {}
 
 // In-memory rooms with four seats. The server binds each socket to its seat;
-// clients never say which seat they are acting for.
-export function createRoomManager({ createGame = createRound, now = Date.now } = {}) {
+// clients never say which seat they are acting for. Each seat also has a private
+// token so its player can reclaim it after a dropped connection.
+export function createRoomManager({
+    createGame = createRound, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout,
+} = {}) {
     const sockets = new Set();
     const rooms = new Map();
     const membershipBySocket = new Map(); // socket -> { room, seat }
@@ -33,22 +42,34 @@ export function createRoomManager({ createGame = createRound, now = Date.now } =
         }
     }
 
-    function broadcastRoomState(room) {
+    // The token goes only to its own seat; notice explains why a round ended.
+    function broadcastRoomState(room, notice = null) {
         const seats = room.seats.map((seat) => seat && { name: seat.name, ready: seat.ready });
         room.seats.forEach((seat, index) => {
-            if (seat) send(seat.socket, SERVER_MESSAGES.ROOM_STATE, { roomId: room.id, you: index, seats, roundId: room.roundId ?? null });
+            if (!seat?.socket) return;
+            send(seat.socket, SERVER_MESSAGES.ROOM_STATE, {
+                roomId: room.id, you: index, seats, roundId: room.roundId ?? null, token: seat.token, notice,
+            });
         });
+    }
+
+    function disconnectedSeats(room) {
+        return room.seats.flatMap((seat, index) => (seat && !seat.socket
+            ? [{ seat: index, name: seat.name, reconnectDeadline: seat.reconnectDeadline }] : []));
+    }
+
+    function isPaused(room) {
+        return Boolean(room.round) && disconnectedSeats(room).length > 0;
     }
 
     function broadcastSnapshots(room) {
         const serverNow = now();
+        const waitingFor = disconnectedSeats(room);
         room.seats.forEach((seat, index) => {
-            if (!seat) return;
-            send(seat.socket, SERVER_MESSAGES.SNAPSHOT, {
-                roomId: room.id,
-                roundId: room.roundId,
-                ...createGameView(room.round, index, serverNow),
-            });
+            if (!seat?.socket) return;
+            const view = createGameView(room.round, index, serverNow);
+            if (waitingFor.length > 0) view.legalActions = NO_ACTIONS;
+            send(seat.socket, SERVER_MESSAGES.SNAPSHOT, { roomId: room.id, roundId: room.roundId, ...view, waitingFor });
         });
     }
 
@@ -63,7 +84,9 @@ export function createRoomManager({ createGame = createRound, now = Date.now } =
         if (room.round) throw new RoomError('round has already started');
         const seat = room.seats.indexOf(null);
         if (seat === -1) throw new RoomError('room is full');
-        room.seats[seat] = { socket, name: cleanName(name, seat), ready: false };
+        room.seats[seat] = {
+            socket, name: cleanName(name, seat), ready: false, token: randomUUID(), reconnectDeadline: null, holdTimer: null,
+        };
         membershipBySocket.set(socket, { room, seat });
         broadcastRoomState(room);
         broadcastRoomList();
@@ -111,6 +134,7 @@ export function createRoomManager({ createGame = createRound, now = Date.now } =
         const { room, seat } = membershipOf(socket);
         room.seats[seat] = null;
         membershipBySocket.delete(socket);
+        // Held seats keep the room alive until they reconnect or expire.
         if (room.seats.every((s) => s === null)) rooms.delete(room.id);
         else {
             broadcastRoomState(room);
@@ -130,6 +154,7 @@ export function createRoomManager({ createGame = createRound, now = Date.now } =
             const { room, seat } = membershipOf(socket);
             if (!room.round) throw new RoomError('no round in progress');
             if (payload.roundId !== room.roundId) throw new RoomError('that action is for an earlier round');
+            if (isPaused(room)) throw new RoomError('waiting for a player to reconnect');
             // ponytail: one map per round; it grows by one entry per action and is dropped with the round.
             const previous = room.actionResults.get(`${seat}:${requestId}`);
             if (previous) {
@@ -153,13 +178,69 @@ export function createRoomManager({ createGame = createRound, now = Date.now } =
         }
     }
 
-    // TODO(M24): Once rounds exist, end the active round and tell the others why.
+    // During a live round the seat is held and play pauses; elsewhere the seat is freed.
     function removeConnection(socket) {
-        if (membershipBySocket.has(socket)) leaveRoom(socket);
+        const membership = membershipBySocket.get(socket);
+        if (membership && membership.room.round && membership.room.round.phase !== 'over') holdSeat(membership);
+        else if (membership) leaveRoom(socket);
         sockets.delete(socket);
     }
 
-    return { addConnection, removeConnection, listRooms, createRoom, joinRoom, setReady, leaveRoom, playerAction };
+    function holdSeat({ room, seat }) {
+        const player = room.seats[seat];
+        membershipBySocket.delete(player.socket);
+        player.socket = null;
+        player.reconnectDeadline = now() + RECONNECT_HOLD_MS;
+        player.holdTimer = setTimer(() => expireHold(room, player), RECONNECT_HOLD_MS);
+        player.holdTimer?.unref?.();
+        pauseRound(room.round);
+        broadcastSnapshots(room);
+    }
+
+    // Ends the round, removes everyone still disconnected and returns the rest to the room.
+    function expireHold(room, player) {
+        if (!room.seats.includes(player) || player.socket) return;
+        const departed = room.seats.filter((seat) => seat && !seat.socket);
+        for (const seat of departed) clearTimer(seat.holdTimer);
+        room.seats = room.seats.map((seat) => (departed.includes(seat) ? null : seat));
+        if (room.round) abandonRound(room.round, 'player_disconnected');
+        room.round = null;
+        room.roundId = null;
+        room.actionResults = null;
+        for (const seat of room.seats) if (seat) seat.ready = false;
+        if (room.seats.every((seat) => seat === null)) rooms.delete(room.id);
+        else {
+            const names = departed.map((seat) => seat.name).join(', ');
+            broadcastRoomState(room, `${names} did not reconnect, so the round ended.`);
+        }
+        broadcastRoomList();
+    }
+
+    // Reattaches a socket to the seat its token belongs to. A newer tab replaces an older one.
+    function resumeSeat(socket, roomId, token) {
+        if (membershipBySocket.has(socket)) throw new RoomError('already in a room');
+        const room = rooms.get(String(roomId));
+        const seat = typeof token === 'string' && room ? room.seats.findIndex((player) => player?.token === token) : -1;
+        if (seat === -1) throw new RoomError('that seat is no longer held');
+        const player = room.seats[seat];
+        if (player.socket) {
+            membershipBySocket.delete(player.socket);
+            listRooms(player.socket);
+            send(player.socket, SERVER_MESSAGES.ERROR, { reason: 'this seat was opened in another tab' });
+        }
+        clearTimer(player.holdTimer);
+        player.holdTimer = null;
+        player.reconnectDeadline = null;
+        player.socket = socket;
+        membershipBySocket.set(socket, { room, seat });
+        if (room.round && !isPaused(room)) resumeRound(room.round);
+        broadcastRoomState(room);
+        if (room.round) broadcastSnapshots(room);
+    }
+
+    return {
+        addConnection, removeConnection, listRooms, createRoom, joinRoom, resumeSeat, setReady, leaveRoom, playerAction,
+    };
 }
 
 function applyAction(state, seat, { kind, tileId, windowId }) {

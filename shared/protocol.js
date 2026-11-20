@@ -7,6 +7,7 @@ export const CLIENT_MESSAGES = Object.freeze({
     LIST_ROOMS: 'listRooms',    // {}
     CREATE_ROOM: 'createRoom',  // { name }
     JOIN_ROOM: 'joinRoom',      // { roomId, name }
+    RESUME_SEAT: 'resumeSeat',  // { roomId, token }, reclaims a held seat after a dropped connection
     READY: 'ready',             // { ready: boolean }
     LEAVE_ROOM: 'leaveRoom',    // {}
     // { requestId, roundId, kind: ACTION_KINDS, tileId? (discard), windowId? (claim/pass) }
@@ -18,9 +19,11 @@ export const ACTION_KINDS = Object.freeze(['drawFront', 'drawBack', 'discard', '
 export const SERVER_MESSAGES = Object.freeze({
     // { rooms: [{ id, playerNames: string[], isFull }] }, sent to everyone not in a room
     ROOM_LIST: 'roomList',
-    // { roomId, you: seat, roundId: string | null, seats: [{ name, ready } | null] }, sent to everyone in the room
+    // { roomId, you: seat, roundId: string | null, seats: [{ name, ready } | null], token, notice: string | null },
+    // sent to everyone in the room; token is private to its own seat
     ROOM_STATE: 'roomState',
     // Full personalized game view; never includes wall order or opponents' hands.
+    // waitingFor: [{ seat, name, reconnectDeadline }] lists held seats while play is paused.
     SNAPSHOT: 'snapshot',
     // { requestId, accepted: boolean, reason? }, sent only to the player who acted
     ACTION_RESULT: 'actionResult',

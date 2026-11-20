@@ -29,7 +29,11 @@ Gameplay controls are not implemented yet.
 To view a live round, open four browser tabs and click **Create game** on the
 table in one. Its address changes to `/?room=<id>`; open that invite link in
 the other three tabs (or click **Join Game** and pick the room or enter its code),
-then click Ready in each. The lobby menus also work with Tab and Enter. Separate rooms can run at the same time. Expand the details below the table to
+then click Ready in each. The lobby menus also work with Tab and Enter. Separate rooms can run at the same time.
+If a player's connection drops or they reload during a round, play pauses and
+their seat is held for 30 seconds; the same tab rejoins automatically. If they
+do not return in time, the round ends and everyone else goes back to the room.
+Expand the details below the table to
 inspect public melds, specials and discards.
 
 ## Setup

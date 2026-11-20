@@ -93,3 +93,13 @@ test('meld tiles are shown in rank order, not claim order', () => {
     const identities = createTableView(snapshot).players[0].melds[0].tiles.map(tile => tile.identity);
     assert.deepEqual(identities, ['7WAN', '8WAN', '9WAN']);
 });
+
+test('the dealer\'s extra opening tile is marked on the first snapshot and dropped after the turn', async () => {
+    const { findDrawnTileId } = await import('../src/game/view.js');
+    const tile = (id) => ({ id, identity: '1WAN' });
+    const opening = { roundId: 'r', viewerSeat: 0, currentSeat: 0, phase: 'discard', openingTileId: 'q',
+        ownHand: ['a', 'q', 'z'].map(tile) };
+    assert.equal(findDrawnTileId(null, opening), 'q');
+    assert.equal(findDrawnTileId(null, { ...opening, viewerSeat: 1 }), null);
+    assert.equal(findDrawnTileId(opening, { ...opening, phase: 'claims', openingTileId: null }), null);
+});

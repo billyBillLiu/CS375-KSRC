@@ -91,3 +91,16 @@ test('best claim and retained Chi are offered only to the eligible recipient', (
         assert.equal(createGameView(state, seat, 3500).retainedChi, null);
     }
 });
+
+test('only the dealer is told which tile is their extra opening tile, until they discard', () => {
+    const state = round();
+    const dealerView = createGameView(state, state.dealerSeat);
+    assert.ok(dealerView.ownHand.some((tile) => tile.id === dealerView.openingTileId));
+    for (const seat of [1, 2, 3]) {
+        const view = createGameView(state, seat);
+        assert.equal(view.openingTileId, null);
+        assert.ok(!JSON.stringify(view).includes(state.openingTileId));
+    }
+    discard(state, state.dealerSeat, state.players[state.dealerSeat].concealed[0].id);
+    assert.equal(createGameView(state, state.dealerSeat).openingTileId, null);
+});

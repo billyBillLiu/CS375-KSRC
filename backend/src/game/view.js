@@ -14,6 +14,8 @@ export function createGameView(state, seat, serverNow = Date.now()) {
         wallCount: state.wall.length,
         gold: copyTile(state.gold),
         ownHand: state.players[seat].concealed.map(copyTile),
+        // A concealed tile's ID, so only the dealer may receive it.
+        openingTileId: seat === state.dealerSeat ? state.openingTileId : null,
         players: state.players.map((player, index) => ({
             seat: index,
             concealedCount: player.concealed.length,

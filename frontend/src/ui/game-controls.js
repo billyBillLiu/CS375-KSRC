@@ -93,6 +93,11 @@ export function createGameControls(root, { send, onSelectionChange }) {
             render();
         },
         select,
+        // A request sent on a dropped connection never gets a reply.
+        cancelPending() {
+            pendingRequestId = null;
+            render();
+        },
         clear() {
             view = null;
             selectedTileId = null;

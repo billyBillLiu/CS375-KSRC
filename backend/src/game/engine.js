@@ -27,6 +27,7 @@ export function createRound({ wall, random = Math.random, clock = SYSTEM_CLOCK, 
     const extraTile = takeTile(state);
     if (extraTile === null) return state;
     state.players[state.dealerSeat].concealed.push(extraTile);
+    state.openingTileId = extraTile.id;
 
     if (!replaceSetupSpecials(state)) return state;
     if (!revealGold(state)) return state;
@@ -54,6 +55,7 @@ export function discard(state, seat, tileInstanceId) {
     if (index === -1) throw new Error('Tile is not in this player\'s concealed hand');
 
     const [tile] = player.concealed.splice(index, 1);
+    state.openingTileId = null;
     settlePendingDiscard(state);
     state.pendingDiscard = { tile, fromSeat: seat };
     state.phase = 'claims';
@@ -197,26 +199,56 @@ function requireClaimWindow(state, windowId) {
 function openClaimWindow(state) {
     clearClaimWindow(state);
     const runtime = getRuntime(state);
-    const window = {
+    state.claimWindow = {
         id: randomUUID(),
         deadline: runtime.clock.now() + CLAIM_WINDOW_MS,
         choices: Array(state.players.length).fill(null),
     };
-    state.claimWindow = window;
+    scheduleClaimExpiry(state, CLAIM_WINDOW_MS);
+}
+
+function scheduleClaimExpiry(state, delay) {
+    const runtime = getRuntime(state);
+    const window = state.claimWindow;
     function expire() {
         if (state.phase !== 'claims' || state.claimWindow?.id !== window.id) return;
         const remaining = window.deadline - runtime.clock.now();
         if (remaining > 0) {
-            schedule(remaining);
+            scheduleClaimExpiry(state, remaining);
             return;
         }
         resolveClaims(state, window.id);
     }
-    function schedule(delay) {
-        runtime.timer = runtime.clock.setTimeout(expire, delay);
-        runtime.timer?.unref?.();
-    }
-    schedule(CLAIM_WINDOW_MS);
+    runtime.timer = runtime.clock.setTimeout(expire, delay);
+    runtime.timer?.unref?.();
+}
+
+// Stops the claim timer while a player reconnects; the window keeps its remaining time.
+export function pauseRound(state) {
+    const window = state.claimWindow;
+    if (!window || window.pausedRemainingMs !== undefined) return state;
+    const runtime = getRuntime(state);
+    if (runtime.timer !== null) runtime.clock.clearTimeout(runtime.timer);
+    runtime.timer = null;
+    window.pausedRemainingMs = Math.max(0, window.deadline - runtime.clock.now());
+    return state;
+}
+
+export function resumeRound(state) {
+    const window = state.claimWindow;
+    if (!window || window.pausedRemainingMs === undefined) return state;
+    window.deadline = getRuntime(state).clock.now() + window.pausedRemainingMs;
+    delete window.pausedRemainingMs;
+    scheduleClaimExpiry(state, window.deadline - getRuntime(state).clock.now());
+    return state;
+}
+
+// Ends a round that cannot continue, such as when a player never reconnects.
+export function abandonRound(state, reason) {
+    if (state.phase === 'over') return state;
+    settlePendingDiscard(state);
+    endRound(state, reason);
+    return state;
 }
 
 function clearClaimWindow(state) {
@@ -302,6 +334,7 @@ function replaceSetupSpecials(state) {
                 const replacement = takeTile(state, true);
                 if (replacement === null) return false;
                 player.concealed.push(replacement);
+                if (special.id === state.openingTileId) state.openingTileId = replacement.id;
             }
         }
     }

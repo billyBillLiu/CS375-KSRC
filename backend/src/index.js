@@ -7,7 +7,8 @@ import { serveStatic } from './static.js';
 // Render sets RENDER=true; it needs 0.0.0.0 to reach the server.
 const host = process.env.HOST || (process.env.RENDER ? '0.0.0.0' : '127.0.0.1');
 const port = Number(process.env.PORT || 3001);
-const heartbeatMs = 30000;
+// A silently dropped socket is noticed within two beats, well inside the 30-second seat hold.
+const heartbeatMs = 10000;
 
 const server = createServer(async (request, response) => {
     if (request.url === '/api/health' && request.method === 'GET') {

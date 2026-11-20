@@ -24,6 +24,7 @@ export function createTableView(snapshot) {
         claimWindowId: snapshot.claimWindowId,
         retainedChi: snapshot.retainedChi,
         legalActions: snapshot.legalActions,
+        openingTileId: snapshot.openingTileId ?? null,
         players: snapshot.players.map(player => ({
             seat: player.seat,
             concealedCount: player.concealedCount,
@@ -42,9 +43,11 @@ export function createTableView(snapshot) {
 
 // The tile drawn this turn is the one new tile in the local hand since the
 // previous snapshot. It stays marked until it is discarded or the turn ends.
+// The dealer's extra opening tile comes from the server, since there is no earlier hand to compare.
 export function findDrawnTileId(previous, next) {
-    if (!previous || previous.roundId !== next.roundId) return null;
     if (next.currentSeat !== next.viewerSeat || next.phase !== 'discard') return null;
+    if (next.openingTileId && next.ownHand.some((tile) => tile.id === next.openingTileId)) return next.openingTileId;
+    if (!previous || previous.roundId !== next.roundId) return null;
     const previousIds = new Set(previous.ownHand.map((tile) => tile.id));
     const added = next.ownHand.filter((tile) => !previousIds.has(tile.id));
     if (added.length === 1) return added[0].id;

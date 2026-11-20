@@ -134,6 +134,16 @@ export function drawMenu(context, atlas, menu) {
     context.restore();
 }
 
+// A notice strip across the middle of the table, such as a reconnect countdown.
+export function drawBanner(context, message) {
+    context.save();
+    context.fillStyle = COLORS.wash;
+    context.fillRect(0, 0, TABLE_WIDTH, TABLE_HEIGHT);
+    drawFrame(context, 92, 94, 200, 28, COLORS.panel, COLORS.gold);
+    drawText(context, text(message, 192, 108.5, { size: 8, bold: true, color: COLORS.goldText, maxWidth: 190 }));
+    context.restore();
+}
+
 // A gold double border like the table's trim.
 function drawFrame(context, x, y, w, h, fill, edge) {
     context.fillStyle = edge;

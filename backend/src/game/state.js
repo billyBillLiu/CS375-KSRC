@@ -24,6 +24,8 @@ export function createRoundState({ wall } = {}) {
         gold: null,
         skippedGoldSpecials: [],
         nextMeldId: 0,
+        // The dealer's 17th tile (or its special replacement), marked until their first discard.
+        openingTileId: null,
         winner: null,
         endReason: null,
     };

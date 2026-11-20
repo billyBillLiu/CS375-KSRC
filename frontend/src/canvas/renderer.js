@@ -1,6 +1,6 @@
 import { backs, drawSprite, loadAtlas, loadImage, tableSprites, tiles } from './atlas.js';
 
-import { drawMenu } from './menu.js';
+import { drawBanner, drawMenu } from './menu.js';
 import { CENTER_TABLE, HAND_TILE_HEIGHT, HAND_TILE_WIDTH, layoutPlayerHand, layoutDiscards, SPECIAL_CAPACITY, TABLE_WIDTH, TABLE_HEIGHT } from './layout.js';
 
 export async function initializeRenderer(canvas) {
@@ -17,6 +17,7 @@ export async function initializeRenderer(canvas) {
 
     let view = null;
     let menu = null;
+    let banner = null;
 
     function draw() {
         const { width, height } = canvas.getBoundingClientRect();
@@ -68,6 +69,7 @@ export async function initializeRenderer(canvas) {
             }
         }
         if (menu) drawMenu(context, atlas, menu);
+        else if (banner) drawBanner(context, banner);
     }
 
     function drawCenter() {
@@ -127,6 +129,11 @@ export async function initializeRenderer(canvas) {
         // The lobby menu is drawn over the table; null hides it.
         setMenu(nextMenu) {
             menu = nextMenu;
+            draw();
+        },
+        setBanner(nextBanner) {
+            if (nextBanner === banner) return;
+            banner = nextBanner;
             draw();
         },
         destroy() {

@@ -14,4 +14,5 @@ transition. Claim deadlines use an injected clock without real sleeps.
 Room and message tests cover waiting-room membership, readiness, disconnects and
 invalid requests, four-player round starts and private snapshots. View tests cover
 concealed-hand privacy, public tiles, legal actions and winner-only reveals.
-Active-round disconnect handling remains for M24.
+Reconnect tests cover the 30-second seat hold: paused play, token privacy,
+resuming with a seat token, replaced tabs and expiry back to the room.

@@ -30,6 +30,8 @@ function route(rooms, socket, { type, payload }) {
             return rooms.createRoom(socket, payload.name);
         case CLIENT_MESSAGES.JOIN_ROOM:
             return rooms.joinRoom(socket, payload.roomId, payload.name);
+        case CLIENT_MESSAGES.RESUME_SEAT:
+            return rooms.resumeSeat(socket, payload.roomId, payload.token);
         case CLIENT_MESSAGES.READY:
             return rooms.setReady(socket, payload.ready);
         case CLIENT_MESSAGES.LEAVE_ROOM:

@@ -45,7 +45,10 @@ function showSnapshot(snapshot) {
     nextView.drawnTileId = findDrawnTileId(tableView, nextView);
     nextView.drawnSpecialIds = findDrawnSpecialIds(tableView, nextView);
     tableView = nextView;
+    waitingFor = snapshot.waitingFor ?? [];
+    serverClockOffsetMs = Date.now() - snapshot.serverNow;
     drawTable(controls.setView(tableView));
+    updateBanner();
     const youLabel = tableView.currentSeat === tableView.viewerSeat ? ' (you)' : '';
     const turnText = tableView.phase === 'over'
         ? 'Round ended' : `Turn: seat ${tableView.currentSeat}${youLabel}`;
@@ -59,6 +62,8 @@ function showSnapshot(snapshot) {
 
 function clearRound() {
     tableView = null;
+    waitingFor = [];
+    updateBanner();
     controls.clear();
     renderer?.setView(null);
     roundSummary.textContent = '';
@@ -76,7 +81,9 @@ const lobby = createLobby({
 if (samplePreview || params.has('atlas')) lobby.hide();
 
 // Each room has its own ?room= URL, so an invite link opens straight into that room.
-let urlRoomToJoin = params.get('room');
+function roomInUrl() {
+    return new URLSearchParams(window.location.search).get('room');
+}
 
 function setRoomInUrl(roomId) {
     const url = new URL(window.location.href);
@@ -85,30 +92,76 @@ function setRoomInUrl(roomId) {
     window.history.replaceState(null, '', url);
 }
 
+// Seat tokens live in sessionStorage, so a reload or dropped connection in this
+// tab can reclaim the seat while the server holds it, without sharing it with other tabs.
+function seatTokenKey(roomId) {
+    return `mahjong-seat-${roomId}`;
+}
+
+let isConnected = false;
+let pendingRoom = null; // { roomId, resuming } while a join or resume request is in flight
+let waitingFor = [];
+let serverClockOffsetMs = 0;
+
+function enterRoomFromUrl() {
+    const roomId = roomInUrl();
+    if (!roomId) {
+        connection.send(CLIENT_MESSAGES.LIST_ROOMS);
+        return;
+    }
+    const token = sessionStorage.getItem(seatTokenKey(roomId));
+    pendingRoom = { roomId, resuming: token !== null };
+    if (token) connection.send(CLIENT_MESSAGES.RESUME_SEAT, { roomId, token });
+    else lobby.joinRoom(roomId);
+}
+
+// Shown over the table during a round: our own lost connection, or a held seat's countdown.
+function updateBanner() {
+    let banner = null;
+    if (tableView && !isConnected) {
+        banner = 'Connection lost — reconnecting…';
+    } else if (tableView && waitingFor.length > 0) {
+        const serverNow = Date.now() - serverClockOffsetMs;
+        const deadline = Math.min(...waitingFor.map((seat) => seat.reconnectDeadline));
+        const seconds = Math.max(0, Math.ceil((deadline - serverNow) / 1000));
+        const names = waitingFor.map((seat) => seat.name).join(', ');
+        banner = `Waiting for ${names} to reconnect… ${seconds}s`;
+    }
+    renderer?.setBanner(banner);
+}
+setInterval(updateBanner, 500);
+
 const connection = connectToServer({
     onStatus(state) {
-        lobby.setConnected(state === 'open');
+        isConnected = state === 'open';
+        lobby.setConnected(isConnected);
         if (state === 'connecting') connectionStatus.textContent = 'Connecting to server…';
         if (state === 'open') {
             connectionStatus.textContent = 'Connected';
-            if (urlRoomToJoin) lobby.joinRoom(urlRoomToJoin);
-            else connection.send(CLIENT_MESSAGES.LIST_ROOMS);
+            enterRoomFromUrl();
         }
-        if (state === 'closed') connectionStatus.textContent = 'Connection lost. Reload the page to reconnect.';
+        if (state === 'closed') {
+            connectionStatus.textContent = 'Connection lost. Reconnecting…';
+            controls.cancelPending();
+        }
+        updateBanner();
     },
     onMessage({ type, payload }) {
         if (samplePreview) return;
         if (type === SERVER_MESSAGES.ROOM_LIST) {
-            connectionStatus.textContent = 'Connected';
-            // Other rooms' changes can arrive while the invite link's join is pending.
-            if (!urlRoomToJoin) setRoomInUrl(null);
+            // Other rooms' changes can arrive while a join or resume is pending.
+            if (!pendingRoom && roomInUrl()) {
+                sessionStorage.removeItem(seatTokenKey(roomInUrl()));
+                setRoomInUrl(null);
+            }
             lobby.showRoomList(payload.rooms);
             clearRound();
         } else if (type === SERVER_MESSAGES.ROOM_STATE) {
-            connectionStatus.textContent = 'Connected';
-            urlRoomToJoin = null;
+            pendingRoom = null;
+            sessionStorage.setItem(seatTokenKey(payload.roomId), payload.token);
             setRoomInUrl(payload.roomId);
             lobby.showRoomState(payload, window.location.href);
+            if (payload.notice) lobby.showMessage(payload.notice);
             if (!payload.roundId) clearRound();
         } else if (type === SERVER_MESSAGES.SNAPSHOT) {
             showSnapshot(payload);
@@ -116,9 +169,14 @@ const connection = connectToServer({
             controls.handleResult(payload);
         } else if (type === SERVER_MESSAGES.ERROR) {
             connectionStatus.textContent = `Server error: ${payload.reason}`;
-            if (urlRoomToJoin) {
-                lobby.showMessage(`Could not join room ${urlRoomToJoin}: ${payload.reason}`);
-                urlRoomToJoin = null;
+            if (pendingRoom?.resuming) {
+                // The seat is gone (the hold expired or the room reset); try an ordinary join.
+                sessionStorage.removeItem(seatTokenKey(pendingRoom.roomId));
+                pendingRoom.resuming = false;
+                lobby.joinRoom(pendingRoom.roomId);
+            } else if (pendingRoom) {
+                lobby.showMessage(`Could not join room ${pendingRoom.roomId}: ${payload.reason}`);
+                pendingRoom = null;
                 connection.send(CLIENT_MESSAGES.LIST_ROOMS);
             } else {
                 lobby.showMessage(payload.reason);

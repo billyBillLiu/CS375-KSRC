@@ -725,3 +725,13 @@ test('claim eligibility is checked again against the current concealed tiles', (
     state.players[1].discards.push(...state.players[1].concealed.splice(0, 5));
     assertRejectedClaim(state, 1);
 });
+
+test('a special dealt as the dealer\'s extra tile passes the opening mark to its replacement', () => {
+    const suited = buildWall().map((tile) => tile.tileId).filter((face) => !isSpecial(face));
+    // 64 tiles fill the four packets; index 64 is the dealer's extra tile.
+    const wall = [...suited.slice(0, 64), 'WIND_EAST', ...suited.slice(64)];
+    const state = createRound({ wall, clock: { now: () => 0, setTimeout: () => null, clearTimeout() {} } });
+    const replacement = state.players[0].concealed.find((tile) => tile.id === state.openingTileId);
+    assert.equal(replacement.tileId, suited.at(-1));
+    assert.equal(state.players[0].specials[0].tileId, 'WIND_EAST');
+});
