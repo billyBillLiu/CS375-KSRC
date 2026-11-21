@@ -8,8 +8,9 @@ export const CENTER_TABLE = {
     wallBack: { x: 256.8, y: 106 },
     gold: { x: 139.5, y: 97 },
     nestBack: { x: 140.5, y: 102 },
-    nestFront: { x: 139.5, y: 109.5 },
-    sparrow: { x: 118, y: 97 },
+    nestFront: { x: 134.5, y: 109.5 },
+    // Compensate for the expanded crop so the bird's body keeps its position.
+    sparrow: { x: 119.5, y: 94 },
 };
 
 const DIRECTIONS = ['south', 'east', 'north', 'west'];
@@ -29,44 +30,44 @@ export const HAND_TILE_HEIGHT = 31;
 export const DISCARD_CAPACITY = 8;
 export const SPECIAL_CAPACITY = 24;
 
-// Logical row length and per-tile step for each visual seat. Side-seat meld art
-// is 16 units tall, so melds need a wider step than the 6-unit backs to stay readable.
-// North and West meld art reads against the row direction, so their meld tiles are reversed.
+// Concealed and revealed tiles share the same slots in each visual seat's row.
+// North and East meld art reads against the row direction, so their meld tiles are reversed.
 const HAND_ROWS = [
-    { length: 340, concealedStep: 20, meldStep: 20, reverseMelds: false },
-    { length: 102, concealedStep: 6, meldStep: 12, reverseMelds: false },
-    { length: 238, concealedStep: 14, meldStep: 14, reverseMelds: true },
-    { length: 102, concealedStep: 6, meldStep: 12, reverseMelds: true },
+    { length: 340, step: 20, reverseMelds: false },
+    { length: 102, step: 6, reverseMelds: true },
+    { length: 238, step: 14, reverseMelds: true },
+    { length: 102, step: 6, reverseMelds: false },
 ];
 
-// Include a small gap before each locked meld and shrink the entire row to fit.
+// Keep melds flush with the concealed hand and shrink the entire row to fit.
 export function layoutPlayerHand(seat, viewerSeat, concealedCount, melds = []) {
     const visualSeat = getVisualSeat(seat, viewerSeat);
     const row = HAND_ROWS[visualSeat];
     const slots = [];
     let offset = 0;
-    function addSlot(step, tileIndex, meldIndex) {
-        slots.push({ center: offset + step / 2, tileIndex, meldIndex });
-        offset += step;
+    function addSlot(tileIndex, meldIndex) {
+        slots.push({ center: offset + row.step / 2, tileIndex, meldIndex });
+        offset += row.step;
     }
-    for (let index = 0; index < concealedCount; index += 1) addSlot(row.concealedStep, index, null);
+    for (let index = 0; index < concealedCount; index += 1) addSlot(index, null);
     melds.forEach((meld, meldIndex) => {
-        offset += row.meldStep / 2;
         const count = meld.tiles.length;
         for (let index = 0; index < count; index += 1) {
-            addSlot(row.meldStep, row.reverseMelds ? count - 1 - index : index, meldIndex);
+            addSlot(row.reverseMelds ? count - 1 - index : index, meldIndex);
         }
     });
 
-    const scale = Math.min(1, row.length / Math.max(row.concealedStep, offset));
+    const scale = Math.min(1, row.length / Math.max(row.step, offset));
     return slots.map(({ center, tileIndex, meldIndex }) => {
         const centered = (center - offset / 2) * scale;
         let x = 192 + (visualSeat === 0 ? centered : -centered);
         let y = visualSeat === 0 ? 178.22 : 41;
         if (visualSeat === 1 || visualSeat === 3) {
             // The side rows slant outward half a unit per unit of length, indexed from the first tile.
-            const slant = (center - row.concealedStep / 2) / 2 * scale;
+            const slant = (center - row.step / 2) / 2 * scale;
             x = visualSeat === 1 ? 314 + slant : 70 - slant;
+            // Inset the wider revealed artwork while keeping its place along the row.
+            if (meldIndex !== null) x += (visualSeat === 1 ? -3 : 3) * scale;
             y = 101 + centered;
         }
         return { x, y, scale, direction: DIRECTIONS[visualSeat], tileIndex, meldIndex };

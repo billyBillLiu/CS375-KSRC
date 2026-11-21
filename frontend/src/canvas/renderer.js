@@ -31,7 +31,11 @@ export async function initializeRenderer(canvas) {
         context.drawImage(border, 0, 0, TABLE_WIDTH, TABLE_HEIGHT);
         drawCenter();
         if (view) {
-            for (const player of view.players) {
+            // Draw north behind both side hands, then the local hand, from every viewer's seat.
+            for (const visualSeat of [2, 1, 3, 0]) {
+                const seat = (view.viewerSeat + visualSeat) % 4;
+                const player = view.players.find(player => player.seat === seat);
+                if (!player) continue;
                 const isLocal = player.seat === view.viewerSeat;
                 const melds = player.melds ?? [];
                 const positions = layoutPlayerHand(player.seat, view.viewerSeat, player.concealedCount, melds);
@@ -58,7 +62,7 @@ export async function initializeRenderer(canvas) {
                 if (isLocal) {
                     (player.specials ?? []).slice(0, SPECIAL_CAPACITY).forEach((tile, index) => {
                         const highlight = view.drawnSpecialIds?.includes(tile.id) ? '#7fd4ff' : null;
-                        drawScaled(tiles[tile.identity].revealed.south, 12 + index * 9, 199, 0.4, highlight);
+                        drawScaled(tiles[tile.identity].revealed.south, 16 + index * 9, 199, 0.4, highlight);
                     });
                 }
 

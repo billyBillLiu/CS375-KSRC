@@ -24,9 +24,9 @@ for (const [suitIndex, suit] of ['WAN', 'TAO', 'BIN'].entries()) {
             discardRight: crop(191 + (8 - column) * 21, 168 + suitIndex * 31, 20, 21),
             revealed: {
                 south: crop(column * 21, (suitIndex + 1) * 32, 20, 31, 'south_revealed'),
-                east: crop(column * 28, 377 + suitIndex * 17, 27, 16),
+                east: crop((8 - column) * 28, 429 + suitIndex * 17, 27, 16),
                 north: crop(column * 15, 482 + suitIndex * 24, 14, 23),
-                west: crop((8 - column) * 28, 429 + suitIndex * 17, 27, 16),
+                west: crop(column * 28, 377 + suitIndex * 17, 27, 16),
             },
         };
         // Gold art scaled to the hand slot, marking the local player's wildcards.
@@ -47,9 +47,9 @@ for (const [identity, [column, row]] of Object.entries(specialPositions)) {
         discardRight: { ...south, width: 12, height: 16, rotation: Math.PI / 4 },
         revealed: {
             south,
-            east: { ...south, width: 16, height: 27, rotation: Math.PI / 2 },
+            east: { ...south, width: 16, height: 27, rotation: -Math.PI / 2 },
             north: { ...south, width: 14, height: 23 },
-            west: { ...south, width: 16, height: 27, rotation: -Math.PI / 2 },
+            west: { ...south, width: 16, height: 27, rotation: Math.PI / 2 },
         },
     };
 }
@@ -65,7 +65,7 @@ export const tableSprites = {
     wall: crop(223, 5, 100, 53),
     wallFront: crop(227, 62, 11, 19),
     wallBack: crop(240, 63, 14, 16),
-    sparrow: crop(266, 62, 23, 23),
+    sparrow: crop(266, 61, 26, 24),
     nestBack: crop(305, 60, 34, 6),
     nestFront: crop(294, 72, 46, 13),
 };

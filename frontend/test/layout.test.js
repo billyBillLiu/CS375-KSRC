@@ -49,17 +49,37 @@ test('five Kongs and a pair retain all 22 tiles within the table from every seat
     }
 });
 
-test('opponent melds read in rank order along their artwork and stay legible on side seats', () => {
+test('revealing melds preserves continuous hand slots from every viewer seat', () => {
+    for (const [concealedCount, meldSizes] of [[13, [3]], [10, [3, 4]], [2, [4, 4, 4, 4, 4]]]) {
+        const melds = meldSizes.map(count => ({ tiles: Array(count).fill({ identity: '1WAN' }) }));
+        const totalCount = concealedCount + meldSizes.reduce((total, count) => total + count, 0);
+        for (let viewer = 0; viewer < 4; viewer += 1) {
+            for (let seat = 0; seat < 4; seat += 1) {
+                const geometry = positions => positions.map(({ x, y, scale, direction }) => ({ x, y, scale, direction }));
+                const expected = geometry(layoutPlayerHand(seat, viewer, totalCount));
+                for (const position of expected.slice(concealedCount)) {
+                    if (position.direction === 'east') position.x -= 3 * position.scale;
+                    if (position.direction === 'west') position.x += 3 * position.scale;
+                }
+                assert.deepEqual(
+                    geometry(layoutPlayerHand(seat, viewer, concealedCount, melds)),
+                    expected,
+                );
+            }
+        }
+    }
+});
+
+test('opponent melds read in rank order along their artwork', () => {
     const melds = [{ tiles: Array(3).fill({ identity: '1WAN' }) }];
     // Screen order (left-to-right, or top-to-bottom on side seats) of meld tile indexes.
     const north = layoutPlayerHand(2, 0, 3, melds).filter(item => item.meldIndex === 0)
         .sort((a, b) => a.x - b.x).map(item => item.tileIndex);
     assert.deepEqual(north, [0, 1, 2]);
-    for (const [seat, expected] of [[1, [0, 1, 2]], [3, [2, 1, 0]]]) {
+    for (const [seat, expected] of [[1, [2, 1, 0]], [3, [0, 1, 2]]]) {
         const meld = layoutPlayerHand(seat, 0, 13, melds).filter(item => item.meldIndex === 0)
             .sort((a, b) => a.y - b.y);
         assert.deepEqual(meld.map(item => item.tileIndex), expected);
-        assert.ok(meld[1].y - meld[0].y >= 11.99 * meld[0].scale);
     }
 });
 
