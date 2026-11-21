@@ -1,10 +1,63 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTableView } from '../src/game/view.js';
+import { createTableView, getDiscardDisplay } from '../src/game/view.js';
 import { createGameView } from '../../backend/src/game/view.js';
 import { createRound } from '../../backend/src/game/engine.js';
 import { buildWall } from '../../backend/src/game/tiles.js';
 import { layoutHand } from '../src/canvas/layout.js';
+
+test('only viewers with a legal Chi, Peng, Kong or win see the pending discard in the center', () => {
+    const pendingDiscard = { seat: 2, tile: { id: 'pending', identity: '3WAN' } };
+    const players = Array.from({ length: 4 }, (_, seat) => ({
+        seat, discards: [{ id: `discard-${seat}`, identity: '1BIN' }],
+    }));
+    for (const claim of ['chi', 'peng', 'kong', 'win']) {
+        for (let viewerSeat = 0; viewerSeat < 4; viewerSeat += 1) {
+            const eligible = viewerSeat === 3;
+            const view = { viewerSeat, players, pendingDiscard, legalActions: { claim: eligible ? claim : null } };
+            const original = structuredClone(view);
+            const { centerDiscard, piles } = getDiscardDisplay(view);
+            assert.deepEqual(centerDiscard, eligible ? pendingDiscard : null);
+            for (const pile of piles) {
+                const expectedIds = [`discard-${pile.seat}`];
+                if (!eligible && pile.seat === 2) expectedIds.push('pending');
+                assert.deepEqual(pile.tiles.map(tile => tile.id), expectedIds);
+            }
+            assert.deepEqual(view, original);
+        }
+    }
+});
+
+test('passing puts the discard in its corner and retained Chi makes it available in the center again', () => {
+    const view = {
+        viewerSeat: 1, phase: 'claims', legalActions: { claim: 'chi' },
+        pendingDiscard: { seat: 0, tile: { id: 'pending', identity: '3WAN' } },
+        players: [{ seat: 0, discards: [] }],
+    };
+    assert.equal(getDiscardDisplay(view).centerDiscard.tile.id, 'pending');
+    const passed = getDiscardDisplay({ ...view, legalActions: { claim: null } });
+    assert.equal(passed.centerDiscard, null);
+    assert.deepEqual(passed.piles[0].tiles.map(tile => tile.id), ['pending']);
+    const retained = getDiscardDisplay({ ...view, phase: 'drawFront', retainedChi: { seat: 1 } });
+    assert.equal(retained.centerDiscard.tile.id, 'pending');
+    assert.deepEqual(retained.piles[0].tiles, []);
+});
+
+test('a provisional corner discard disappears when claimed and appears only once when settled', () => {
+    const tile = { id: 'pending', identity: '3WAN' };
+    const view = {
+        viewerSeat: 0, legalActions: { claim: null }, pendingDiscard: { seat: 0, tile },
+        players: [{ seat: 0, discards: [] }],
+    };
+    assert.deepEqual(getDiscardDisplay(view).piles[0].tiles, [tile]);
+    const claimed = getDiscardDisplay({ ...view, pendingDiscard: null });
+    assert.equal(claimed.centerDiscard, null);
+    assert.deepEqual(claimed.piles[0].tiles, []);
+    const settled = getDiscardDisplay({ ...view, pendingDiscard: null, players: [{ seat: 0, discards: [tile] }] });
+    assert.equal(settled.centerDiscard, null);
+    assert.deepEqual(settled.piles[0].tiles, [tile]);
+    assert.deepEqual(view.players[0].discards, []);
+});
 
 test('real snapshots preserve private hands, absolute ownership and shared public tiles for every viewer', () => {
     const state = createRound({ wall: buildWall().map(tile => tile.tileId) });

@@ -1,7 +1,8 @@
 import { backs, drawSprite, loadAtlas, loadImage, tableSprites, tiles } from './atlas.js';
+import { getDiscardDisplay } from '../game/view.js';
 
 import { drawBanner, drawMenu } from './menu.js';
-import { CENTER_TABLE, HAND_TILE_HEIGHT, HAND_TILE_WIDTH, layoutPlayerHand, layoutDiscards, SPECIAL_CAPACITY, TABLE_WIDTH, TABLE_HEIGHT } from './layout.js';
+import { CENTER_TABLE, DISCARD_CAPACITY, HAND_TILE_HEIGHT, HAND_TILE_WIDTH, layoutPlayerHand, layoutDiscards, SPECIAL_CAPACITY, TABLE_WIDTH, TABLE_HEIGHT } from './layout.js';
 
 export async function initializeRenderer(canvas) {
     const context = canvas.getContext('2d');
@@ -31,6 +32,7 @@ export async function initializeRenderer(canvas) {
         context.drawImage(border, 0, 0, TABLE_WIDTH, TABLE_HEIGHT);
         drawCenter();
         if (view) {
+            const { centerDiscard, piles } = getDiscardDisplay(view);
             // Draw north behind both side hands, then the local hand, from every viewer's seat.
             for (const visualSeat of [2, 1, 3, 0]) {
                 const seat = (view.viewerSeat + visualSeat) % 4;
@@ -55,7 +57,7 @@ export async function initializeRenderer(canvas) {
                     if (isLocal && !isMeld && tile.id === view.selectedTileId) outlineHandTile('#ffd34d');
                     context.restore();
                 });
-                const discards = player.discards ?? [];
+                const discards = piles.find(pile => pile.seat === player.seat).tiles.slice(-DISCARD_CAPACITY);
                 layoutDiscards(player.seat, view.viewerSeat, discards.length).forEach(({ x, y }, index) => {
                     drawScaled(tiles[discards[index].identity].discardLeft, x, y, 0.7);
                 });
@@ -67,9 +69,8 @@ export async function initializeRenderer(canvas) {
                 }
 
             }
-            if (view.pendingDiscard) {
-                drawScaled(tiles[view.pendingDiscard.tile.identity].current, 192, 142, 0.88);
-                label(`Seat ${view.pendingDiscard.seat} discard`, 192, 119);
+            if (centerDiscard) {
+                drawScaled(tiles[centerDiscard.tile.identity].current, 192, 142, 0.88);
             }
         }
         if (menu) drawMenu(context, atlas, menu);
@@ -111,13 +112,6 @@ export async function initializeRenderer(canvas) {
         drawSprite(context, atlas, sprite, 0, 0);
         if (outlineColor) outlineHandTile(outlineColor, 3);
         context.restore();
-    }
-
-    function label(text, x, y) {
-        context.font = '5px sans-serif';
-        context.textAlign = 'center';
-        context.fillStyle = '#fff4cb';
-        context.fillText(text, x, y);
     }
 
     const resizeObserver = new ResizeObserver(draw);

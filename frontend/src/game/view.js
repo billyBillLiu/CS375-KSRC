@@ -7,6 +7,20 @@ function handOrder(tile) {
     return suit * 9 + Number(tile.identity[0]);
 }
 
+// A pending tile is still public to everyone, but only claimants need it in the center.
+export function getDiscardDisplay(view) {
+    const pending = view.pendingDiscard;
+    const centerDiscard = pending && view.legalActions?.claim ? pending : null;
+    const piles = view.players.map(player => {
+        const tiles = [...(player.discards ?? [])];
+        if (pending && !centerDiscard && pending.seat === player.seat) {
+            tiles.push(pending.tile);
+        }
+        return { seat: player.seat, tiles };
+    });
+    return { centerDiscard, piles };
+}
+
 // Adapt the private server snapshot to the Canvas view without changing seats.
 export function createTableView(snapshot) {
     return {
