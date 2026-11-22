@@ -13,6 +13,9 @@
     "preview": "vite preview --config frontend/vite.config.js",
     "test": "node --test \"backend/test/**/*.test.js\""
   },
-  "dependencies": { "ws": "^8.18.3" },
+  "dependencies": {
+    "pg": "^8.23.1",
+    "ws": "^8.18.3"
+  },
   "devDependencies": { "vite": "^7.3.1" }
 }

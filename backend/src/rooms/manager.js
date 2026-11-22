@@ -17,11 +17,48 @@ export class RoomError extends Error {}
 // token so its player can reclaim it after a dropped connection.
 export function createRoomManager({
     createGame = createRound, now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout,
+    sessionDatabase = null,
 } = {}) {
     const sockets = new Set();
     const rooms = new Map();
     const membershipBySocket = new Map(); // socket -> { room, seat }
     let nextRoomId = 1;
+
+    function recordSession(room) {
+        if (!sessionDatabase) return;
+        const timestamp = new Date(now()).toISOString();
+        for (const participant of room.session.participants) {
+            const player = room.seats.find((seat) => seat?.participantId === participant.id);
+            participant.connected = Boolean(player?.socket);
+            if (!player && !participant.leftAt) participant.leftAt = timestamp;
+        }
+        if (room.round) {
+            let round = room.session.rounds.find((entry) => entry.id === room.roundId);
+            if (!round) {
+                round = {
+                    id: room.roundId, startedAt: timestamp, endedAt: null,
+                    endReason: null, winnerSeat: null,
+                    participantIds: room.seats.map((seat) => seat.participantId),
+                };
+                room.session.rounds.push(round);
+            }
+            if (room.round.phase === 'over' && !round.endedAt) {
+                round.endedAt = timestamp;
+                round.endReason = room.round.endReason;
+                round.winnerSeat = room.round.winner;
+            }
+        }
+        if (room.seats.every((seat) => seat === null) && !room.session.endedAt) {
+            room.session.endedAt = timestamp;
+            room.session.endReason = 'room_empty';
+        }
+        // Persist lifecycle changes only, never wall order, hands or resume tokens.
+        const serialized = JSON.stringify(room.session);
+        if (serialized !== room.lastSavedSession) {
+            room.lastSavedSession = serialized;
+            sessionDatabase.save(JSON.parse(serialized));
+        }
+    }
 
     function send(socket, type, payload) {
         socket.send(createMessage(type, payload));
@@ -44,6 +81,7 @@ export function createRoomManager({
 
     // The token goes only to its own seat; notice explains why a round ended.
     function broadcastRoomState(room, notice = null) {
+        recordSession(room);
         const seats = room.seats.map((seat) => seat && { name: seat.name, ready: seat.ready });
         room.seats.forEach((seat, index) => {
             if (!seat?.socket) return;
@@ -63,6 +101,7 @@ export function createRoomManager({
     }
 
     function broadcastSnapshots(room) {
+        recordSession(room);
         const serverNow = now();
         const waitingFor = disconnectedSeats(room);
         room.seats.forEach((seat, index) => {
@@ -85,8 +124,14 @@ export function createRoomManager({
         const seat = room.seats.indexOf(null);
         if (seat === -1) throw new RoomError('room is full');
         room.seats[seat] = {
-            socket, name: cleanName(name, seat), ready: false, token: randomUUID(), reconnectDeadline: null, holdTimer: null,
+            participantId: randomUUID(), socket, name: cleanName(name, seat), ready: false,
+            token: randomUUID(), reconnectDeadline: null, holdTimer: null,
         };
+        const player = room.seats[seat];
+        room.session.participants.push({
+            id: player.participantId, seat, name: player.name,
+            joinedAt: new Date(now()).toISOString(), connected: true, leftAt: null,
+        });
         membershipBySocket.set(socket, { room, seat });
         broadcastRoomState(room);
         broadcastRoomList();
@@ -103,6 +148,10 @@ export function createRoomManager({
     function createRoom(socket, name) {
         if (membershipBySocket.has(socket)) throw new RoomError('already in a room');
         const room = { id: String(nextRoomId++), seats: Array(SEAT_COUNT).fill(null) };
+        room.session = {
+            id: randomUUID(), roomCode: room.id, startedAt: new Date(now()).toISOString(),
+            endedAt: null, endReason: null, participants: [], rounds: [],
+        };
         rooms.set(room.id, room);
         takeSeat(socket, room, name);
     }
@@ -132,8 +181,13 @@ export function createRoomManager({
 
     function leaveRoom(socket) {
         const { room, seat } = membershipOf(socket);
+        if (room.round && room.round.phase !== 'over') {
+            abandonRound(room.round, 'player_left');
+            recordSession(room);
+        }
         room.seats[seat] = null;
         membershipBySocket.delete(socket);
+        recordSession(room);
         // Held seats keep the room alive until they reconnect or expire.
         if (room.seats.every((s) => s === null)) rooms.delete(room.id);
         else {
@@ -204,6 +258,7 @@ export function createRoomManager({
         for (const seat of departed) clearTimer(seat.holdTimer);
         room.seats = room.seats.map((seat) => (departed.includes(seat) ? null : seat));
         if (room.round) abandonRound(room.round, 'player_disconnected');
+        recordSession(room);
         room.round = null;
         room.roundId = null;
         room.actionResults = null;
