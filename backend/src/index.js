@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { WebSocketServer } from 'ws';
 import { createMessageHandler } from './network/handlers.js';
 import { createRoomManager } from './rooms/manager.js';
+import { openSessionDatabase } from './database/sessions.js';
 import { serveStatic } from './static.js';
 
 // Render sets RENDER=true; it needs 0.0.0.0 to reach the server.
@@ -10,10 +11,12 @@ const port = Number(process.env.PORT || 3001);
 // A silently dropped socket is noticed within two beats, well inside the 30-second seat hold.
 const heartbeatMs = 10000;
 
+const sessionDatabase = await openSessionDatabase(process.env.DATABASE_URL);
+
 const server = createServer(async (request, response) => {
     if (request.url === '/api/health' && request.method === 'GET') {
-        response.writeHead(200, { 'Content-Type': 'application/json' });
-        response.end(JSON.stringify({ status: 'ok' }));
+        response.writeHead(sessionDatabase.healthy ? 200 : 503, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify({ status: sessionDatabase.healthy ? 'ok' : 'database_unavailable' }));
         return;
     }
     if (request.method === 'GET' && await serveStatic(request, response)) return;
@@ -21,7 +24,7 @@ const server = createServer(async (request, response) => {
     response.end('Not found');
 });
 
-const rooms = createRoomManager();
+const rooms = createRoomManager({ sessionDatabase });
 const handleMessage = createMessageHandler(rooms);
 
 const sockets = new WebSocketServer({ server, path: '/ws', maxPayload: 16384 });
@@ -50,11 +53,20 @@ server.listen(port, host, () => {
     console.log(`Mahjong backend: http://${host}:${port}`);
 });
 
-function shutdown() {
+let shuttingDown = false;
+async function shutdown() {
+    if (shuttingDown) return;
+    shuttingDown = true;
     clearInterval(heartbeat);
     for (const socket of sockets.clients) socket.terminate();
     sockets.close();
-    server.close();
+    await new Promise((resolve) => server.close(resolve));
+    try {
+        await sessionDatabase.close();
+    } catch (error) {
+        console.error('Could not finish saving sessions:', error.message);
+        process.exitCode = 1;
+    }
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);

@@ -216,6 +216,13 @@ Use short, direct functions and add small helpers only when useful.
   **After:** M26. **Done when:** Checks pass and a teammate can run the demo
   from the README. No additional documentation files or verification reports needed.
 
+## Database sessions
+
+PostgreSQL now stores room session history, anonymous participants and round
+outcomes. Configure `DATABASE_URL` as described in README.md. Live room state and
+30-second reconnects remain in memory; a backend restart ends open sessions.
+Scoring and daily/weekly leaderboards are separate follow-up work.
+
 ## Later, once the MVP works
 
 Manual hand rearrangement, animated dealing/replacements, shaped discard piles,

@@ -55,7 +55,8 @@ npm ci
 
 If you already have the repository, run `npm ci` from its root directory.
 
-Start the frontend and backend together:
+Complete the PostgreSQL setup under Configuration below, then start the frontend
+and backend together:
 
 ```sh
 npm run dev
@@ -86,16 +87,48 @@ This preview is development-only. Run its layout tests with
 
 During development, Vite forwards `/api` and `/ws` requests to the backend.
 Frontend edits reload automatically, and the backend restarts when its source
-files change. No database or account setup is needed.
+files change. PostgreSQL is required; accounts are not required.
 
 ## Configuration
 
-The defaults work without an environment file. To change the backend settings,
-copy `.env.example` to `.env` in the repository root:
+Start a local PostgreSQL server (for example with Postgres.app), create the database,
+and copy `.env.example` to `.env` in the repository root:
 
 ```sh
+createdb mahjong
 cp .env.example .env
 ```
+
+Set `DATABASE_URL` in `.env` to your PostgreSQL connection string (the default is
+`postgresql://localhost:5432/mahjong`). If your server requires credentials, include
+the database username and password. The backend creates its tables automatically
+on startup; the database user needs table-creation permission. Startup fails if
+PostgreSQL is unavailable. Only one backend may use this database at a time.
+
+PostgreSQL stores room sessions, participant names/seats and connection status,
+and round start/end times, reasons and winner seats. A new room gets a unique
+session ID even when its short room code is reused. Participants are anonymous
+seat memberships, not persistent accounts. No hands, wall order, resume tokens,
+scores or leaderboards are stored. Live games remain in memory: the existing
+30-second reconnect works while the backend is running, but restarting it ends
+unfinished sessions. Session history survives restarts.
+
+Writes are queued in order and committed transactionally. Failed writes are
+retried while the process runs, and `/api/health` returns 503 after a persistence
+failure. A lost PostgreSQL connection requires restarting the backend. Queued
+writes are held in memory and can be lost if the process crashes before saving.
+Graceful shutdown flushes the queue and marks open sessions as stopped.
+
+To run the database integration test, create a **separate disposable database**
+(the test marks unfinished sessions as interrupted):
+
+```sh
+createdb mahjong_test
+TEST_DATABASE_URL=postgresql://localhost:5432/mahjong_test npm test
+```
+
+Without `TEST_DATABASE_URL`, database integration is skipped; the remaining
+backend tests still run.
 
 Keep `HOST=127.0.0.1` for local development. If you change `PORT`, restart
 `npm run dev` so the backend and Vite proxy use the new value. The `.env` file
@@ -167,6 +200,7 @@ Create a **Web Service** from this repository:
 
 - Build command: `npm ci && npm run build`
 - Start command: `npm start`
+- Set `DATABASE_URL` to the connection string for your PostgreSQL database.
 
 The backend serves the built frontend from `frontend/dist`, so the page and the
 `/ws` WebSocket share one URL. Render sets `PORT` and `RENDER`, and the server
