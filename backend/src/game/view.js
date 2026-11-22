@@ -40,6 +40,7 @@ export function createGameView(state, seat, serverNow = Date.now()) {
         endReason: state.endReason,
     };
     if (state.phase === 'over' && state.winner !== null) {
+        view.score = state.score ? { ...state.score } : null;
         view.revealedWinnerHand = state.players[state.winner].concealed.map(copyTile);
     }
     return view;

@@ -4,11 +4,11 @@ export const MELDS_PER_HAND = 5;
 
 // Gold is the physical indicator tile (or null), as stored in round state.
 export function isWinningHand(player, gold = null) {
-    return checkHand(player.concealed, player.melds.length, gold);
+    return checkHand(player.concealed, player.melds.length, gold) >= 0;
 }
 
 export function canWinWithTile(player, candidate, gold = null) {
-    return checkHand([...player.concealed, candidate], player.melds.length, gold);
+    return checkHand([...player.concealed, candidate], player.melds.length, gold) >= 0;
 }
 
 // Returned tiles are the concealed instances needed for the meld, excluding the discard.
@@ -57,10 +57,15 @@ export function findChiTiles(player, candidate) {
     return null;
 }
 
-function checkHand(hand, lockedMelds, gold) {
+// Maximum concealed meld points; -1 means no valid five-meld-plus-pair hand.
+export function winningGroupPoints(player, gold = null) {
+    return checkHand(player.concealed, player.melds.length, gold, true);
+}
+
+function checkHand(hand, lockedMelds, gold, maximize = false) {
     // Each meld entry is one locked group, even a four-tile Kong.
     const meldsNeeded = MELDS_PER_HAND - lockedMelds;
-    if (meldsNeeded < 0 || hand.length !== meldsNeeded * 3 + 2) return false;
+    if (meldsNeeded < 0 || hand.length !== meldsNeeded * 3 + 2) return -1;
 
     const counts = new Map();
     let wilds = 0;
@@ -71,56 +76,60 @@ function checkHand(hand, lockedMelds, gold) {
             counts.set(tile.tileId, (counts.get(tile.tileId) ?? 0) + 1);
         }
     }
-    return solve(counts, wilds, meldsNeeded, false);
+    return solve(counts, wilds, meldsNeeded, false, maximize, new Map());
 }
 
-function solve(counts, wilds, melds, pairFound) {
+function solve(counts, wilds, melds, pairFound, maximize, memo) {
+    const key = `${[...counts.values()]}:${wilds}:${melds}:${pairFound}`;
+    if (memo.has(key)) return memo.get(key);
     let remaining = 0;
     let first = null;
     for (const [tileId, count] of counts) {
         remaining += count;
         if (count > 0 && first === null) first = tileId;
     }
-    if (remaining + wilds !== melds * 3 + (pairFound ? 0 : 2)) return false;
-    if (remaining === 0) return true;
+    if (remaining + wilds !== melds * 3 + (pairFound ? 0 : 2)) return -1;
+    // All-Gold groups may be triplets, the highest-valued concealed group.
+    if (remaining === 0) return melds * 2;
+    let best = -1;
+
+    function tryGroup(naturalTiles, goldUsed, nextMelds, nextPair, points) {
+        if (goldUsed > wilds) return;
+        const nextCounts = new Map(counts);
+        for (const tileId of naturalTiles) {
+            const count = nextCounts.get(tileId) ?? 0;
+            if (count === 0) return;
+            nextCounts.set(tileId, count - 1);
+        }
+        const result = solve(nextCounts, wilds - goldUsed, nextMelds, nextPair, maximize, memo);
+        if (result >= 0) best = Math.max(best, result + points);
+    }
 
     if (!pairFound) {
         for (let goldUsed = 0; goldUsed <= 1; goldUsed++) {
-            const naturalTiles = Array(2 - goldUsed).fill(first);
-            if (tryGroup(counts, wilds, naturalTiles, goldUsed, melds, true)) return true;
+            tryGroup(Array(2 - goldUsed).fill(first), goldUsed, melds, true, 0);
+            if (!maximize && best >= 0) return best;
         }
     }
-    if (melds === 0) return false;
-
-    for (let goldUsed = 0; goldUsed <= 2; goldUsed++) {
-        const naturalTiles = Array(3 - goldUsed).fill(first);
-        if (tryGroup(counts, wilds, naturalTiles, goldUsed, melds - 1, pairFound)) return true;
-    }
-
-    const parsed = parseTile(first);
-    if (!parsed) return false;
-    const { rank, suit } = parsed;
-    for (let start = Math.max(1, rank - 2); start <= Math.min(7, rank); start++) {
-        const sequence = [`${start}${suit}`, `${start + 1}${suit}`, `${start + 2}${suit}`];
-        const others = sequence.filter((tileId) => tileId !== first);
-        // Always consume the first natural tile. Try Gold in either other slot,
-        // even when that natural face is available and could be saved for a pair.
-        const naturalChoices = [sequence, [first, others[0]], [first, others[1]], [first]];
-        for (const naturalTiles of naturalChoices) {
-            const goldUsed = 3 - naturalTiles.length;
-            if (tryGroup(counts, wilds, naturalTiles, goldUsed, melds - 1, pairFound)) return true;
+    if (melds > 0) {
+        for (let goldUsed = 0; goldUsed <= 2; goldUsed++) {
+            tryGroup(Array(3 - goldUsed).fill(first), goldUsed, melds - 1, pairFound, 2);
+            if (!maximize && best >= 0) return best;
+        }
+        const parsed = parseTile(first);
+        if (parsed) {
+            const { rank, suit } = parsed;
+            for (let start = Math.max(1, rank - 2); start <= Math.min(7, rank); start++) {
+                const sequence = [`${start}${suit}`, `${start + 1}${suit}`, `${start + 2}${suit}`];
+                const others = sequence.filter((tileId) => tileId !== first);
+                // Gold may replace a face that is present but needed in another group.
+                for (const naturalTiles of [sequence, [first, others[0]], [first, others[1]], [first]]) {
+                    tryGroup(naturalTiles, 3 - naturalTiles.length, melds - 1, pairFound, 1);
+                    if (!maximize && best >= 0) return best;
+                }
+            }
         }
     }
-    return false;
-}
-
-function tryGroup(counts, wilds, naturalTiles, goldUsed, melds, pairFound) {
-    if (goldUsed > wilds) return false;
-    const nextCounts = new Map(counts);
-    for (const tileId of naturalTiles) {
-        const count = nextCounts.get(tileId) ?? 0;
-        if (count === 0) return false;
-        nextCounts.set(tileId, count - 1);
-    }
-    return solve(nextCounts, wilds - goldUsed, melds, pairFound);
+    memo.set(key, best);
+    return best;
 }

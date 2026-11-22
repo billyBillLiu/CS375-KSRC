@@ -28,3 +28,19 @@ CREATE TABLE IF NOT EXISTS session_rounds (
 
 CREATE INDEX IF NOT EXISTS session_participants_session_idx ON session_participants(session_id);
 CREATE INDEX IF NOT EXISTS session_rounds_session_idx ON session_rounds(session_id);
+
+CREATE TABLE IF NOT EXISTS leaderboard_players (
+    id uuid PRIMARY KEY,
+    token_hash text NOT NULL UNIQUE
+);
+ALTER TABLE session_participants ADD COLUMN IF NOT EXISTS player_id uuid
+    REFERENCES leaderboard_players(id);
+
+CREATE TABLE IF NOT EXISTS winner_scores (
+    round_id uuid PRIMARY KEY REFERENCES session_rounds(id),
+    participant_id uuid NOT NULL REFERENCES session_participants(id),
+    completed_at timestamptz NOT NULL,
+    points numeric(8, 1) NOT NULL CHECK (points > 0),
+    breakdown jsonb NOT NULL
+);
+CREATE INDEX IF NOT EXISTS winner_scores_completed_idx ON winner_scores(completed_at);

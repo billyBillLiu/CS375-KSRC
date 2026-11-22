@@ -3,6 +3,7 @@ import { CLIENT_MESSAGES, SERVER_MESSAGES } from '../../shared/protocol.js';
 import { initializeRenderer } from './canvas/renderer.js';
 import { connectToServer } from './network/client.js';
 import { createLobby } from './ui/lobby.js';
+import { createLeaderboard } from './ui/leaderboard.js';
 import { createGameControls } from './ui/game-controls.js';
 import { findHandTileAt, toLogicalPoint } from './canvas/input.js';
 import { createTableView, findDrawnSpecialIds, findDrawnTileId } from './game/view.js';
@@ -18,6 +19,7 @@ const params = new URLSearchParams(window.location.search);
 const samplePreview = import.meta.env.DEV && params.has('sample');
 let renderer = null;
 let tableView = null;
+const leaderboard = createLeaderboard(document.querySelector('.leaderboard'), document.querySelector('.round-result'));
 
 const controls = createGameControls(document.querySelector('.game-controls'), {
     send: (type, payload) => connection.send(type, payload),
@@ -41,6 +43,7 @@ canvas.addEventListener('mousemove', (event) => {
 });
 
 function showSnapshot(snapshot) {
+    leaderboard.showResult(snapshot);
     const nextView = createTableView(snapshot);
     nextView.drawnTileId = findDrawnTileId(tableView, nextView);
     nextView.drawnSpecialIds = findDrawnSpecialIds(tableView, nextView);
@@ -61,6 +64,7 @@ function showSnapshot(snapshot) {
 }
 
 function clearRound() {
+    leaderboard.clear();
     tableView = null;
     waitingFor = [];
     updateBanner();

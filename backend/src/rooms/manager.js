@@ -46,6 +46,7 @@ export function createRoomManager({
                 round.endedAt = timestamp;
                 round.endReason = room.round.endReason;
                 round.winnerSeat = room.round.winner;
+                round.score = room.round.score ?? null;
             }
         }
         if (room.seats.every((seat) => seat === null) && !room.session.endedAt) {
@@ -129,7 +130,7 @@ export function createRoomManager({
         };
         const player = room.seats[seat];
         room.session.participants.push({
-            id: player.participantId, seat, name: player.name,
+            id: player.participantId, playerId: socket.playerId ?? null, seat, name: player.name,
             joinedAt: new Date(now()).toISOString(), connected: true, leftAt: null,
         });
         membershipBySocket.set(socket, { room, seat });
