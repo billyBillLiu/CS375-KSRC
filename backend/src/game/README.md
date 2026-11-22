@@ -52,13 +52,16 @@ specials. Illegal or repeated applications throw without changing state.
 `view.js` builds personalized snapshots with the recipient’s own hand and legal
 actions, opponent counts and public tiles. Only a finished round’s winner is
 revealed. Rooms start the engine when all four connected seats are ready and
-broadcast these views on setup and timed claim resolution. Browser game controls
-and network action handling are still pending.
+broadcast these views on setup and timed claim resolution. Browser controls send
+validated actions to the server.
 
 `rules.js` exports `isWinningHand(player, gold)` and
 `canWinWithTile(player, candidate, gold)`. They use physical tile objects, treat
 Gold as a wildcard and count each locked meld (including a Kong) as one group.
 Both checks leave the player's state unchanged; `gold` may be null or omitted.
+`winningGroupPoints` uses the same solver to maximize concealed meld points.
+`scoring.js` adds declared melds and the special/win multipliers at round end;
+only the winner's score is included in finished snapshots.
 
 `getBestClaim(state, seat)` returns the seat's highest-priority claim during phase
 `claims`: Win, Kong, Peng, then Chi. After that window, it offers only retained Chi

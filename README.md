@@ -13,7 +13,8 @@ frontend development server and production build tooling.
 - Four players required to begin a game.
 - Disconnection handling.
 - Live Mahjong gameplay using the Fuzhou ruleset.
-- Optional: bots and a weekly leaderboard for valuable winning hands.
+- Daily and weekly high scores for winning hands.
+- Optional: bots.
 - Saved sessions and session game state so people can rejoin.
 - Lobby code creation and joining system.
 
@@ -24,7 +25,8 @@ status. When all four connected players are ready, the server starts a round and
 sends private snapshots with each player’s own hand, opponent counts, public tiles
 and legal actions. Each browser renders its sorted hand at the bottom, opponent
 backs, Gold and public tiles, with seat labels, the current turn and wall count.
-Gameplay controls are not implemented yet.
+Gameplay controls support draws, discards and claims. Finished winning rounds show
+a score breakdown and whether the score has been saved to the leaderboard.
 
 To view a live round, open four browser tabs and click **Create game** on the
 table in one. Its address changes to `/?room=<id>`; open that invite link in
@@ -108,8 +110,11 @@ PostgreSQL is unavailable. Only one backend may use this database at a time.
 PostgreSQL stores room sessions, participant names/seats and connection status,
 and round start/end times, reasons and winner seats. A new room gets a unique
 session ID even when its short room code is reused. Participants are anonymous
-seat memberships, not persistent accounts. No hands, wall order, resume tokens,
-scores or leaderboards are stored. Live games remain in memory: the existing
+seat memberships, linked to an anonymous leaderboard identity remembered per browser
+tab across rooms and reloads. Separate tabs have separate identities; opening a
+new tab or clearing session storage starts a new identity. Names are display labels,
+not account credentials. The database stores only a hash of the private identity
+token. No hands, wall order or seat-resume tokens are stored. Live games remain in memory: the existing
 30-second reconnect works while the backend is running, but restarting it ends
 unfinished sessions. Session history survives restarts.
 
@@ -133,6 +138,37 @@ backend tests still run.
 Keep `HOST=127.0.0.1` for local development. If you change `PORT`, restart
 `npm run dev` so the backend and Vite proxy use the new value. The `.env` file
 is ignored by Git; `.env.example` is shared with the team.
+
+## Scoring and leaderboards
+
+Only the winner earns a score:
+
+`(runs + 2 × triplets + 4 × Kongs) × (1 + 0.5 × specials) × win multiplier`
+
+The win multiplier is 2 for self-draw (including a dealer opening win and Kong
+replacement draws), or 1 for a discard win. All collected winds, dragons, flowers
+and seasons count as specials; skipped Gold-indicator specials do not. A pair
+earns zero points. Kongs count once and must be declared melds. Concealed groups
+and Gold substitutions use the highest-scoring valid five-meld-plus-pair
+arrangement. Fractional scores are preserved. For example, four runs and one
+triplet, with four specials and self-draw, earn `6 × 3 × 2 = 36` points.
+
+The High scores panel shows the top 50 players by their best single winning score
+in the selected calendar day or Monday-start week, using `America/New_York`
+(including daylight-saving changes). Equal scores share a rank. The display name
+is the name used for that winning round; identical names are not merged. Scores
+remain in PostgreSQL after the period ends or the server restarts. Losers,
+exhausted-wall rounds and abandoned rounds have no score records.
+
+The server computes the score and saves it together with the finished round in
+one transaction. The round ID prevents duplicate score submissions. The result
+panel confirms saving, or shows a pending/unavailable message with a status-check
+button. Refresh the leaderboard to load newly saved scores. Existing queued-write
+limitations described above still apply.
+
+Read-only endpoints: `/api/leaderboard?period=daily` (or `weekly`) and
+`/api/score-status?roundId=<uuid>`. No endpoint accepts client-submitted scores.
+Existing databases gain the new tables/column automatically at backend startup.
 
 ## Commands
 

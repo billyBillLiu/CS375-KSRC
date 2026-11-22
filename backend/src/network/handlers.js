@@ -46,3 +46,32 @@ function route(rooms, socket, { type, payload }) {
 function sendError(socket, reason) {
     socket.send(createMessage(SERVER_MESSAGES.ERROR, { reason }));
 }
+
+// Identity is established before any room action; no client-provided player ID is trusted.
+export function createIdentifiedHandler(rooms, database) {
+    const handleMessage = createMessageHandler(rooms);
+    const identifying = new WeakSet();
+    const identified = new WeakSet();
+    return async function handleIdentifiedMessage(socket, raw) {
+        if (identified.has(socket)) return handleMessage(socket, raw);
+        const message = parseMessage(String(raw));
+        if (message?.type !== CLIENT_MESSAGES.IDENTIFY || identifying.has(socket)) {
+            sendError(socket, 'Identify this tab before joining a game.');
+            return;
+        }
+        identifying.add(socket);
+        try {
+            const player = await database.identifyPlayer(message.payload.token);
+            if (socket.readyState !== 1) return;
+            socket.playerId = player.id;
+            rooms.addConnection(socket);
+            identified.add(socket);
+            socket.send(createMessage(SERVER_MESSAGES.PLAYER_SESSION, { token: player.token }));
+        } catch (error) {
+            console.error('Player identity could not be loaded:', error.message);
+            if (socket.readyState === 1) socket.close(1011, 'Player session unavailable');
+        } finally {
+            identifying.delete(socket);
+        }
+    };
+}

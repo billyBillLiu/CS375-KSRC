@@ -141,3 +141,93 @@ test('PostgreSQL saves sessions atomically, retries failed writes and closes int
         await reader.end();
     }
 });
+
+test('PostgreSQL keeps one winner score, tab identities and calendar leaderboards', {
+    skip: !process.env.TEST_DATABASE_URL,
+}, async () => {
+    const { randomUUID } = await import('node:crypto');
+    const admin = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+    await admin.connect();
+    const schema = `scoring_${randomUUID().replaceAll('-', '')}`;
+    await admin.query(`CREATE SCHEMA ${schema}`);
+    const url = new URL(process.env.TEST_DATABASE_URL);
+    url.searchParams.set('options', `-c search_path=${schema}`);
+    const reader = new pg.Client({ connectionString: url.href });
+    await reader.connect();
+    let database;
+    try {
+        database = await openSessionDatabase(url.href);
+        const alice = await database.identifyPlayer();
+        const bob = await database.identifyPlayer();
+        const carol = await database.identifyPlayer();
+        assert.deepEqual(await database.identifyPlayer(alice.token), alice);
+        assert.notEqual(alice.id, bob.id);
+        assert.notEqual((await database.identifyPlayer('invalid')).id, alice.id);
+        const stored = (await reader.query('SELECT * FROM leaderboard_players WHERE id = $1', [alice.id])).rows[0];
+        assert.ok(!JSON.stringify(stored).includes(alice.token));
+
+        function session(player, points, completedAt, name = 'Same name', reason = 'self_draw') {
+            const participants = Array.from({ length: 4 }, (_, seat) => ({
+                id: randomUUID(), playerId: seat === 0 ? player.id : null, seat,
+                name: seat === 0 ? name : 'Loser', joinedAt: completedAt, connected: true, leftAt: null,
+            }));
+            return {
+                id: randomUUID(), roomCode: '1', startedAt: completedAt, endedAt: null, endReason: null,
+                participants,
+                rounds: [{ id: randomUUID(), startedAt: completedAt, endedAt: completedAt,
+                    endReason: reason, winnerSeat: reason === 'self_draw' ? 0 : null,
+                    participantIds: participants.map((p) => p.id), score: { total: points } }],
+            };
+        }
+        const first = session(alice, 16, '2026-11-02T05:00:00Z');
+        await reader.query('ALTER TABLE winner_scores ADD CONSTRAINT reject_scores CHECK (points < 0) NOT VALID');
+        database.save(first);
+        await assert.rejects(database.flush());
+        assert.equal((await reader.query('SELECT * FROM game_sessions WHERE id = $1', [first.id])).rowCount, 0);
+        await reader.query('ALTER TABLE winner_scores DROP CONSTRAINT reject_scores');
+        await database.flush();
+        database.save(first);
+        const records = [
+            session(alice, 10, '2026-11-02T08:00:00Z'),
+            session(bob, 16, '2026-11-02T09:00:00Z'),
+            session(carol, 7.5, '2026-11-02T10:00:00Z', 'Carol'),
+            session(alice, 20, '2026-11-03T05:00:00Z'),
+            session(alice, 99, '2026-11-02T04:59:59Z'),
+            session(bob, 99, '2026-11-02T09:00:00Z', 'Abandoned', 'player_disconnected'),
+            session(bob, 99, '2026-11-02T09:00:00Z', 'Draw', 'wall_exhausted'),
+        ];
+        records.forEach((record) => database.save(record));
+        await database.flush();
+        assert.equal(await database.scoreSaved(first.rounds[0].id), true);
+        assert.equal(await database.scoreSaved(records.at(-1).rounds[0].id), false);
+        assert.equal((await reader.query('SELECT * FROM winner_scores')).rowCount, 6);
+        const daily = await database.leaderboard('daily', new Date('2026-11-02T12:00:00Z'));
+        assert.deepEqual(daily.entries.map(({ rank, name, score }) => ({ rank, name, score })), [
+            { rank: 1, name: 'Same name', score: 16 },
+            { rank: 1, name: 'Same name', score: 16 },
+            { rank: 3, name: 'Carol', score: 7.5 },
+        ]);
+        assert.deepEqual((await database.leaderboard('weekly', new Date('2026-11-02T12:00:00Z')))
+            .entries.map((entry) => entry.score), [20, 16, 7.5]);
+        assert.deepEqual((await database.leaderboard('daily', new Date('2026-11-04T12:00:00Z'))).entries, []);
+        assert.equal((await database.leaderboard('daily', new Date('2026-11-01T12:00:00Z'))).entries[0].score, 99);
+        await assert.rejects(database.leaderboard('monthly'), /Invalid/);
+
+        // Spring-forward day ends after 23 hours, not 24.
+        database.save(session(alice, 15, '2026-03-08T05:00:00Z'));
+        database.save(session(bob, 20, '2026-03-09T03:59:59Z'));
+        database.save(session(carol, 50, '2026-03-09T04:00:00Z'));
+        await database.flush();
+        assert.deepEqual((await database.leaderboard('daily', new Date('2026-03-08T12:00:00Z')))
+            .entries.map((entry) => entry.score), [20, 15]);
+        await database.close();
+        database = await openSessionDatabase(url.href);
+        assert.equal(await database.scoreSaved(first.rounds[0].id), true);
+        assert.deepEqual(await database.identifyPlayer(alice.token), alice);
+    } finally {
+        if (database) await database.close();
+        await reader.end();
+        await admin.query(`DROP SCHEMA ${schema} CASCADE`);
+        await admin.end();
+    }
+});

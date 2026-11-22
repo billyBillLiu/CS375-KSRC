@@ -1,4 +1,4 @@
-import { createMessage, parseMessage } from '../../../shared/protocol.js';
+import { CLIENT_MESSAGES, SERVER_MESSAGES, createMessage, parseMessage } from '../../../shared/protocol.js';
 
 const RETRY_DELAYS_MS = [500, 1000, 2000, 4000];
 
@@ -13,8 +13,9 @@ export function connectToServer({ onMessage, onStatus }) {
         onStatus('connecting');
         socket = new WebSocket(`${protocol}://${location.host}/ws`);
         socket.addEventListener('open', () => {
-            failedAttempts = 0;
-            onStatus('open');
+            socket.send(createMessage(CLIENT_MESSAGES.IDENTIFY, {
+                token: sessionStorage.getItem('mahjong-player-token'),
+            }));
         });
         socket.addEventListener('close', () => {
             onStatus('closed');
@@ -26,6 +27,12 @@ export function connectToServer({ onMessage, onStatus }) {
             const message = parseMessage(event.data);
             if (!message) {
                 console.warn('Ignored a malformed server message:', event.data);
+                return;
+            }
+            if (message.type === SERVER_MESSAGES.PLAYER_SESSION) {
+                sessionStorage.setItem('mahjong-player-token', message.payload.token);
+                failedAttempts = 0;
+                onStatus('open');
                 return;
             }
             onMessage(message);

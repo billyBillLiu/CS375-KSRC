@@ -4,6 +4,7 @@ export const SEAT_COUNT = 4;
 export const MAX_NAME_LENGTH = 20;
 
 export const CLIENT_MESSAGES = Object.freeze({
+    IDENTIFY: 'identify',        // { token? }, anonymous tab identity before joining rooms
     LIST_ROOMS: 'listRooms',    // {}
     CREATE_ROOM: 'createRoom',  // { name }
     JOIN_ROOM: 'joinRoom',      // { roomId, name }
@@ -17,6 +18,7 @@ export const CLIENT_MESSAGES = Object.freeze({
 export const ACTION_KINDS = Object.freeze(['drawFront', 'drawBack', 'discard', 'claim', 'pass']);
 
 export const SERVER_MESSAGES = Object.freeze({
+    PLAYER_SESSION: 'playerSession', // { token }, private anonymous identity for this tab
     // { rooms: [{ id, playerNames: string[], isFull }] }, sent to everyone not in a room
     ROOM_LIST: 'roomList',
     // { roomId, you: seat, roundId: string | null, seats: [{ name, ready } | null], token, notice: string | null },

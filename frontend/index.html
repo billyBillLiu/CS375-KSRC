@@ -24,6 +24,13 @@
                 <label for="room-code">Room code</label>
                 <input id="room-code" autocomplete="off" />
             </div>
+            <section class="round-result" aria-label="Round result" hidden>
+                <h2 class="score-heading"></h2>
+                <p class="score-breakdown"></p>
+                <p class="winning-hand"></p>
+                <p class="score-save-status" role="status"></p>
+                <button type="button" class="check-score" hidden>Check save status</button>
+            </section>
             <section class="game-controls" aria-label="Game controls" hidden>
                 <p class="selected-tile" role="status"></p>
                 <div class="action-buttons">
@@ -38,6 +45,20 @@
             <p class="status" role="status"></p>
             <p class="connection-status" role="status"></p>
             <div class="round-details"></div>
+            <section class="leaderboard" aria-label="High scores">
+                <h2>High scores</h2>
+                <div class="action-buttons">
+                    <button type="button" data-period="daily" aria-pressed="true">Daily</button>
+                    <button type="button" data-period="weekly" aria-pressed="false">Weekly</button>
+                    <button type="button" class="refresh-leaderboard">Refresh</button>
+                </div>
+                <p>Calendar days and Monday-start weeks · America/New_York</p>
+                <p class="leaderboard-status" role="status"></p>
+                <table>
+                    <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col">Score</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </section>
         </main>
         <script type="module" src="/src/main.js"></script>
     </body>

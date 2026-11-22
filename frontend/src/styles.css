@@ -40,3 +40,10 @@ canvas {
 .game-controls p { margin: 6px 0; }
 .action-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .action-status { color: #f2b8a0; }
+
+.round-result, .leaderboard { margin-top: 20px; padding: 16px; border: 1px solid #637463; border-radius: 6px; }
+.round-result h2, .leaderboard h2 { margin-top: 0; }
+.leaderboard table { width: 100%; border-collapse: collapse; }
+.leaderboard th, .leaderboard td { padding: 8px; text-align: left; border-bottom: 1px solid #637463; overflow-wrap: anywhere; }
+.leaderboard [aria-pressed="true"] { background: #efe7d0; color: #182c28; }
+.winning-hand { overflow-wrap: anywhere; }

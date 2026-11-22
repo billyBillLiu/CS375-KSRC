@@ -1,3 +1,4 @@
+import { scoreWinner } from './scoring.js';
 import { randomUUID } from 'node:crypto';
 import { createRoundState } from './state.js';
 import { compareTiles, isSpecial } from './tiles.js';
@@ -301,6 +302,7 @@ function endRound(state, reason, winner = null) {
     state.phase = 'over';
     state.winner = winner;
     state.endReason = reason;
+    state.score = scoreWinner(state);
 }
 
 function shuffleWall(wall, random) {
